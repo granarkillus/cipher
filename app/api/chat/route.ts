@@ -36,17 +36,14 @@ export async function POST(request: NextRequest) {
 
     const supabase = getServiceClient();
 
-    // 1. Embed the user message
     const embedding = await embed(message);
 
-    // 2. Retrieve relevant context from messages
     const { data: similarMessages } = await supabase.rpc('match_messages', {
       query_embedding: embedding,
       match_threshold: 0.3,
       match_count: 6,
     });
 
-    // 3. Pull recent conversation history
     const { data: history } = await supabase
       .from('messages')
       .select('role, content')
@@ -56,7 +53,6 @@ export async function POST(request: NextRequest) {
 
     const recentHistory = (history ?? []).reverse();
 
-    // 4. Build system prompt with retrieved context
     const contextSection = similarMessages?.length
       ? `Relevant context from past conversations:\n${similarMessages
           .map((m: { role: string; content: string }) => `[${m.role}]: ${m.content.slice(0, 300)}`)
@@ -67,7 +63,6 @@ export async function POST(request: NextRequest) {
 
 ${contextSection}Be direct. Match the register of the message. Don't pad responses.`;
 
-    // 5. Build messages array
     const claudeMessages: { role: 'user' | 'assistant'; content: string }[] = [
       ...recentHistory.map((m: { role: string; content: string }) => ({
         role: m.role as 'user' | 'assistant',
@@ -76,7 +71,6 @@ ${contextSection}Be direct. Match the register of the message. Don't pad respons
       { role: 'user', content: message },
     ];
 
-    // 6. Call Claude
     const completion = await anthropic.messages.create({
       model,
       max_tokens: 2048,
@@ -87,7 +81,6 @@ ${contextSection}Be direct. Match the register of the message. Don't pad respons
     const reply =
       completion.content[0].type === 'text' ? completion.content[0].text : '';
 
-    // 7. Store both rows
     await supabase.from('messages').insert([
       {
         conversation_id: conversationId,
