@@ -13,8 +13,21 @@ interface ModelOption {
   label: string;
 }
 
-function newConversationId() {
-  return crypto.randomUUID();
+interface Conversation {
+  conversation_id: string;
+  preview: string;
+  last_active: string;
+  message_count: number;
+}
+
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 export default function ChatPage() {
@@ -23,10 +36,24 @@ export default function ChatPage() {
   const [loading, setLoading]           = useState(false);
   const [model, setModel]               = useState('claude-sonnet-4-6');
   const [models, setModels]             = useState<ModelOption[]>([]);
-  const [conversationId]                = useState(newConversationId);
+  const [conversationId, setConversationId] = useState<string>('');
+  const [conversations, setConversations]   = useState<Conversation[]>([]);
+  const [sidebarOpen, setSidebarOpen]   = useState(true);
   const bottomRef                       = useRef<HTMLDivElement>(null);
   const inputRef                        = useRef<HTMLTextAreaElement>(null);
   const router                          = useRouter();
+
+  // Init conversationId from sessionStorage or generate new
+  useEffect(() => {
+    const stored = sessionStorage.getItem('cipher-conversation-id');
+    if (stored) {
+      setConversationId(stored);
+    } else {
+      const newId = crypto.randomUUID();
+      sessionStorage.setItem('cipher-conversation-id', newId);
+      setConversationId(newId);
+    }
+  }, []);
 
   // Load model list
   useEffect(() => {
@@ -36,14 +63,57 @@ export default function ChatPage() {
       .catch(() => {});
   }, []);
 
+  // Load conversations list
+  const refreshConversations = useCallback(() => {
+    fetch('/api/conversations')
+      .then(r => r.json())
+      .then(d => { if (d.conversations) setConversations(d.conversations); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    refreshConversations();
+  }, [refreshConversations]);
+
+  // Load messages when conversationId changes
+  useEffect(() => {
+    if (!conversationId) return;
+    fetch(`/api/messages?conversationId=${conversationId}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.messages) {
+          setMessages(d.messages.map((m: { role: 'user' | 'assistant'; content: string }) => ({
+            role: m.role,
+            content: m.content,
+          })));
+        }
+      })
+      .catch(() => {});
+  }, [conversationId]);
+
   // Auto-scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
+  const loadConversation = useCallback((id: string) => {
+    setMessages([]);
+    setConversationId(id);
+    sessionStorage.setItem('cipher-conversation-id', id);
+  }, []);
+
+  const handleNewChat = useCallback(() => {
+    const newId = crypto.randomUUID();
+    sessionStorage.setItem('cipher-conversation-id', newId);
+    setConversationId(newId);
+    setMessages([]);
+    setInput('');
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }, []);
+
   const sendMessage = useCallback(async () => {
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || loading || !conversationId) return;
 
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: text }]);
@@ -58,6 +128,7 @@ export default function ChatPage() {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
+      refreshConversations();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Something went wrong';
       setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${msg}` }]);
@@ -65,7 +136,7 @@ export default function ChatPage() {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [input, loading, conversationId, model]);
+  }, [input, loading, conversationId, model, refreshConversations]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -77,140 +148,224 @@ export default function ChatPage() {
   const handleSignOut = async () => {
     const supabase = getBrowserClient();
     await supabase.auth.signOut();
+    sessionStorage.removeItem('cipher-conversation-id');
     router.push('/login');
   };
 
-  const handleNewChat = () => {
-    window.location.reload();
-  };
-
-  // Short label for pills (e.g. "Sonnet 4.6" → "SONNET")
   const pillLabel = (label: string) => label.split(' ')[0].toUpperCase();
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100vh',
-      background: '#0c0e17',
-    }}>
+    <div style={{ display: 'flex', height: '100vh', background: '#0c0e17' }}>
 
-      {/* ── Header ── */}
-      <header style={{
-        background: '#0f1220',
-        borderBottom: '1px solid #2d3250',
-        padding: '0 16px',
-        height: '50px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        flexShrink: 0,
-      }}>
-
-        {/* Wordmark */}
-        <span style={{
-          color: '#cc1a1a',
-          fontSize: '14px',
-          fontWeight: '700',
-          letterSpacing: '0.08em',
-          marginRight: 'auto',
+      {/* ── Sidebar ── */}
+      {sidebarOpen && (
+        <div style={{
+          width: '220px',
+          background: '#0f1220',
+          borderRight: '1px solid #2d3250',
+          display: 'flex',
+          flexDirection: 'column',
+          flexShrink: 0,
         }}>
-          ◈ CIPHER
-        </span>
-
-        {/* Model pills */}
-        <div style={{ display: 'flex', gap: '4px', flexWrap: 'nowrap' }}>
-          {(models.length
-            ? models
-            : [
-                { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
-                { id: 'claude-sonnet-4-6',         label: 'Sonnet 4.6' },
-                { id: 'claude-opus-4-8',           label: 'Opus 4.8' },
-                { id: 'claude-fable-5',            label: 'Fable 5' },
-              ]
-          ).map(m => {
-            const active = m.id === model;
-            return (
-              <button
-                key={m.id}
-                onClick={() => setModel(m.id)}
-                style={{
-                  background:    active ? 'rgba(56,189,248,0.12)' : 'transparent',
-                  color:         active ? '#38bdf8'              : '#4a5480',
-                  border:        active ? '1px solid rgba(56,189,248,0.30)' : '1px solid #2d3250',
-                  borderRadius:  '4px',
-                  padding:       '3px 8px',
-                  fontSize:      '11px',
-                  fontWeight:    active ? '600' : '500',
-                  letterSpacing: '0.05em',
-                  transition:    'all 0.15s',
-                  cursor:        'pointer',
-                }}
-              >
-                {pillLabel(m.label)}
-              </button>
-            );
-          })}
-        </div>
-
-        <button
-          onClick={handleNewChat}
-          style={{
-            background:    'transparent',
-            color:         '#4a5480',
-            border:        '1px solid #2d3250',
-            borderRadius:  '4px',
-            padding:       '3px 10px',
-            fontSize:      '11px',
-            letterSpacing: '0.05em',
-          }}
-        >
-          NEW
-        </button>
-
-        <button
-          onClick={handleSignOut}
-          style={{
-            background: 'transparent',
-            color:      '#4a5480',
-            border:     'none',
-            fontSize:   '11px',
-            padding:    '3px 4px',
-            letterSpacing: '0.04em',
-          }}
-        >
-          OUT
-        </button>
-      </header>
-
-      {/* ── Message list ── */}
-      <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: '24px 0 12px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '2px',
-      }}>
-
-        {messages.length === 0 && (
           <div style={{
-            margin: 'auto',
-            textAlign: 'center',
-            color: '#2d3250',
-            padding: '40px 20px',
+            padding: '14px 12px',
+            borderBottom: '1px solid #2d3250',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
           }}>
-            <p style={{ fontSize: '32px', marginBottom: '10px' }}>◈</p>
-            <p style={{ fontSize: '13px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              Online
-            </p>
+            <span style={{
+              color: '#cc1a1a',
+              fontSize: '13px',
+              fontWeight: '700',
+              letterSpacing: '0.08em',
+              flex: 1,
+            }}>
+              ◈ CIPHER
+            </span>
+            <button
+              onClick={handleNewChat}
+              style={{
+                background: 'rgba(56,189,248,0.12)',
+                color: '#38bdf8',
+                border: '1px solid rgba(56,189,248,0.30)',
+                borderRadius: '4px',
+                padding: '3px 8px',
+                fontSize: '11px',
+                fontWeight: '600',
+                letterSpacing: '0.04em',
+                cursor: 'pointer',
+              }}
+            >
+              NEW
+            </button>
           </div>
-        )}
 
-        {messages.map((msg, i) => (
-          <div
-            key={i}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
+            {conversations.length === 0 ? (
+              <p style={{
+                color: '#4a5480',
+                fontSize: '12px',
+                padding: '16px 12px',
+                textAlign: 'center',
+              }}>
+                No history yet
+              </p>
+            ) : (
+              conversations.map(conv => (
+                <button
+                  key={conv.conversation_id}
+                  onClick={() => loadConversation(conv.conversation_id)}
+                  style={{
+                    width: '100%',
+                    background: conv.conversation_id === conversationId
+                      ? 'rgba(56,189,248,0.08)' : 'transparent',
+                    border: 'none',
+                    borderLeft: conv.conversation_id === conversationId
+                      ? '2px solid #38bdf8' : '2px solid transparent',
+                    padding: '8px 12px',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px',
+                  }}
+                >
+                  <span style={{
+                    fontSize: '12px',
+                    color: conv.conversation_id === conversationId ? '#eef0f8' : '#8892b0',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    display: 'block',
+                    maxWidth: '190px',
+                  }}>
+                    {conv.preview?.slice(0, 45) || 'Conversation'}
+                  </span>
+                  <span style={{ fontSize: '10px', color: '#4a5480' }}>
+                    {formatDate(conv.last_active)} · {conv.message_count}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Main area ── */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+
+        {/* Header */}
+        <header style={{
+          background: '#0f1220',
+          borderBottom: '1px solid #2d3250',
+          padding: '0 16px',
+          height: '50px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          flexShrink: 0,
+        }}>
+          <button
+            onClick={() => setSidebarOpen(s => !s)}
             style={{
+              background: 'transparent',
+              color: '#4a5480',
+              border: 'none',
+              fontSize: '16px',
+              padding: '4px 6px',
+              cursor: 'pointer',
+              lineHeight: 1,
+            }}
+            title="Toggle sidebar"
+          >
+            ☰
+          </button>
+
+          {!sidebarOpen && (
+            <span style={{
+              color: '#cc1a1a',
+              fontSize: '14px',
+              fontWeight: '700',
+              letterSpacing: '0.08em',
+            }}>
+              ◈ CIPHER
+            </span>
+          )}
+
+          {/* Model pills */}
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'nowrap', marginRight: 'auto' }}>
+            {(models.length ? models : [
+              { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
+              { id: 'claude-sonnet-4-6',         label: 'Sonnet 4.6' },
+              { id: 'claude-opus-4-8',           label: 'Opus 4.8' },
+              { id: 'claude-fable-5',            label: 'Fable 5' },
+            ]).map(m => {
+              const active = m.id === model;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setModel(m.id)}
+                  style={{
+                    background:    active ? 'rgba(56,189,248,0.12)' : 'transparent',
+                    color:         active ? '#38bdf8' : '#4a5480',
+                    border:        active ? '1px solid rgba(56,189,248,0.30)' : '1px solid #2d3250',
+                    borderRadius:  '4px',
+                    padding:       '3px 8px',
+                    fontSize:      '11px',
+                    fontWeight:    active ? '600' : '500',
+                    letterSpacing: '0.05em',
+                    transition:    'all 0.15s',
+                    cursor:        'pointer',
+                  }}
+                >
+                  {pillLabel(m.label)}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={handleSignOut}
+            style={{
+              background:    'transparent',
+              color:         '#4a5480',
+              border:        'none',
+              fontSize:      '11px',
+              padding:       '3px 4px',
+              letterSpacing: '0.04em',
+              cursor:        'pointer',
+            }}
+          >
+            OUT
+          </button>
+        </header>
+
+        {/* Messages */}
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '20px 0 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2px',
+        }}>
+          {messages.length === 0 && (
+            <div style={{
+              margin: 'auto',
+              textAlign: 'center',
+              color: '#2d3250',
+              padding: '40px 20px',
+            }}>
+              <p style={{ fontSize: '32px', marginBottom: '10px' }}>◈</p>
+              <p style={{ fontSize: '13px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Online
+              </p>
+            </div>
+          )}
+
+          {messages.map((msg, i) => (
+            <div key={i} style={{
               padding:   '8px 24px',
               maxWidth:  '740px',
               width:     '100%',
@@ -218,111 +373,111 @@ export default function ChatPage() {
               display:   'flex',
               flexDirection: 'column',
               gap: '4px',
+            }}>
+              <span style={{
+                fontSize:      '10px',
+                fontWeight:    '700',
+                letterSpacing: '0.09em',
+                textTransform: 'uppercase',
+                color: msg.role === 'user' ? '#38bdf8' : '#cc1a1a',
+              }}>
+                {msg.role === 'user' ? 'You' : 'Cipher'}
+              </span>
+              <p style={{
+                fontSize:   '14px',
+                lineHeight: '1.65',
+                color:      msg.role === 'user' ? '#dce8f5' : '#c8cfe0',
+                whiteSpace: 'pre-wrap',
+                wordBreak:  'break-word',
+                margin:     0,
+              }}>
+                {msg.content}
+              </p>
+            </div>
+          ))}
+
+          {loading && (
+            <div style={{
+              padding: '8px 24px',
+              maxWidth: '740px',
+              width: '100%',
+              margin: '0 auto',
+            }}>
+              <span style={{
+                fontSize:      '10px',
+                fontWeight:    '700',
+                letterSpacing: '0.09em',
+                textTransform: 'uppercase',
+                color: '#cc1a1a',
+              }}>
+                Cipher
+              </span>
+              <p style={{ fontSize: '14px', color: '#2d3250', marginTop: '4px' }}>▌</p>
+            </div>
+          )}
+
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input bar */}
+        <div style={{
+          background:  '#0f1220',
+          borderTop:   '1px solid #2d3250',
+          padding:     '10px 16px',
+          display:     'flex',
+          gap:         '8px',
+          alignItems:  'flex-end',
+          flexShrink:  0,
+        }}>
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Transmit..."
+            rows={1}
+            style={{
+              flex:        1,
+              background:  '#1c2035',
+              border:      '1px solid #2d3250',
+              borderRadius:'6px',
+              padding:     '9px 12px',
+              fontSize:    '14px',
+              lineHeight:  '1.5',
+              color:       '#eef0f8',
+              resize:      'none',
+              outline:     'none',
+              maxHeight:   '160px',
+              overflowY:   'auto',
+            }}
+            onInput={e => {
+              const el = e.currentTarget;
+              el.style.height = 'auto';
+              el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+            }}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={loading || !input.trim()}
+            style={{
+              background:    loading || !input.trim() ? 'rgba(56,189,248,0.25)' : '#38bdf8',
+              color:         loading || !input.trim() ? '#4a5480' : '#0c0e17',
+              border:        'none',
+              borderRadius:  '6px',
+              padding:       '9px 16px',
+              fontSize:      '12px',
+              fontWeight:    '700',
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              height:        '40px',
+              transition:    'all 0.15s',
+              cursor:        loading || !input.trim() ? 'not-allowed' : 'pointer',
             }}
           >
-            <span style={{
-              fontSize:      '10px',
-              fontWeight:    '700',
-              letterSpacing: '0.09em',
-              textTransform: 'uppercase',
-              color: msg.role === 'user' ? '#38bdf8' : '#cc1a1a',
-            }}>
-              {msg.role === 'user' ? 'You' : 'Cipher'}
-            </span>
-            <p style={{
-              fontSize:   '14px',
-              lineHeight: '1.65',
-              color:      msg.role === 'user' ? '#dce8f5' : '#c8cfe0',
-              whiteSpace: 'pre-wrap',
-              wordBreak:  'break-word',
-            }}>
-              {msg.content}
-            </p>
-          </div>
-        ))}
-
-        {/* Typing indicator */}
-        {loading && (
-          <div style={{
-            padding: '8px 24px',
-            maxWidth: '740px',
-            width: '100%',
-            margin: '0 auto',
-          }}>
-            <span style={{
-              fontSize:      '10px',
-              fontWeight:    '700',
-              letterSpacing: '0.09em',
-              textTransform: 'uppercase',
-              color: '#cc1a1a',
-            }}>
-              Cipher
-            </span>
-            <p style={{ fontSize: '14px', color: '#2d3250', marginTop: '4px' }}>▌</p>
-          </div>
-        )}
-
-        <div ref={bottomRef} />
+            Send
+          </button>
+        </div>
       </div>
-
-      {/* ── Input bar ── */}
-      <div style={{
-        background:  '#0f1220',
-        borderTop:   '1px solid #2d3250',
-        padding:     '10px 16px',
-        display:     'flex',
-        gap:         '8px',
-        alignItems:  'flex-end',
-        flexShrink:  0,
-      }}>
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Transmit..."
-          rows={1}
-          style={{
-            flex:        1,
-            background:  '#1c2035',
-            border:      '1px solid #2d3250',
-            borderRadius:'6px',
-            padding:     '9px 12px',
-            fontSize:    '14px',
-            lineHeight:  '1.5',
-            color:       '#eef0f8',
-            resize:      'none',
-            outline:     'none',
-            maxHeight:   '160px',
-            overflowY:   'auto',
-          }}
-          onInput={e => {
-            const el = e.currentTarget;
-            el.style.height = 'auto';
-            el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-          }}
-        />
-        <button
-          onClick={sendMessage}
-          disabled={loading || !input.trim()}
-          style={{
-            background:    loading || !input.trim() ? 'rgba(56,189,248,0.25)' : '#38bdf8',
-            color:         loading || !input.trim() ? '#4a5480'                : '#0c0e17',
-            border:        'none',
-            borderRadius:  '6px',
-            padding:       '9px 16px',
-            fontSize:      '12px',
-            fontWeight:    '700',
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
-            height:        '40px',
-            transition:    'all 0.15s',
-          }}
-        >
-          Send
-        </button>
-      </div>
-
     </div>
   );
 }
