@@ -39,11 +39,11 @@ export async function POST(request: NextRequest) {
     // 1. Embed the user message
     const embedding = await embed(message);
 
-    // 2. Retrieve relevant memories
-    const { data: memories } = await supabase.rpc('match_memories', {
+    // 2. Retrieve relevant context from messages
+    const { data: similarMessages } = await supabase.rpc('match_messages', {
       query_embedding: embedding,
       match_threshold: 0.3,
-      match_count: 8,
+      match_count: 6,
     });
 
     // 3. Pull recent conversation history
@@ -56,16 +56,16 @@ export async function POST(request: NextRequest) {
 
     const recentHistory = (history ?? []).reverse();
 
-    // 4. Build system prompt with injected memories
-    const memorySection = memories?.length
-      ? `Relevant context from past conversations:\n${memories
-          .map((m: { fact: string }) => `- ${m.fact}`)
+    // 4. Build system prompt with retrieved context
+    const contextSection = similarMessages?.length
+      ? `Relevant context from past conversations:\n${similarMessages
+          .map((m: { role: string; content: string }) => `[${m.role}]: ${m.content.slice(0, 300)}`)
           .join('\n')}\n\n`
       : '';
 
     const systemPrompt = `You are Cipher, a personal AI with access to stored memories from past conversations with your owner. Use that context naturally — no need to announce you're doing it.
 
-${memorySection}Be direct. Match the register of the message. Don't pad responses.`;
+${contextSection}Be direct. Match the register of the message. Don't pad responses.`;
 
     // 5. Build messages array
     const claudeMessages: { role: 'user' | 'assistant'; content: string }[] = [
