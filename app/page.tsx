@@ -184,6 +184,7 @@ export default function ChatPage() {
     setMessages([]);
     setArtifact(null);
     setError(false);
+    setInput('');
     setConversationId(id);
     sessionStorage.setItem('cipher-conversation-id', id);
   }, []);
