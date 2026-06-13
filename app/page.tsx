@@ -159,6 +159,7 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => { refreshConversations(); }, [refreshConversations]);
+  useEffect(() => { refreshTitles(); }, [refreshTitles]);
 
   useEffect(() => {
     if (!conversationId) return;
