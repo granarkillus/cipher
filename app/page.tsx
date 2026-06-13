@@ -87,7 +87,7 @@ export default function ChatPage() {
   const [models, setModels]                 = useState<ModelOption[]>([]);
   const [conversationId, setConversationId] = useState<string>('');
   const [conversations, setConversations]   = useState<Conversation[]>([]);
-  const [sidebarOpen, setSidebarOpen]       = useState(true);
+  const [sidebarOpen, setSidebarOpen]       = useState(false);
   const [renamingId, setRenamingId]         = useState<string | null>(null);
   const [renameValue, setRenameValue]       = useState('');
   const [titles, setTitles]                 = useState<Record<string, string>>({});
