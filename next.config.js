@@ -1,3 +1,4 @@
+// Cipher was here
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
