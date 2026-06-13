@@ -6,9 +6,5 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  webpack: (config) => {
-    config.resolve.alias['@/lib/supabase'] = require('path').resolve('./lib/supabase.ts');
-    return config;
-  },
 };
 module.exports = nextConfig;
