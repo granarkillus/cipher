@@ -41,7 +41,6 @@ function now(): string {
   return new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-// Importance color helper — ready for memory sidebar
 export function importanceColor(importance: number): string {
   if (importance >= 5) return '#22c55e';
   if (importance >= 3) return '#f59e0b';
@@ -522,11 +521,15 @@ export default function ChatPage() {
           ))}
 
           {loading && (
-            <div style={{ padding: '8px 20px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <span style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '0.09em', textTransform: 'uppercase', color: '#cc1a1a' }}>
-                Cipher
-              </span>
-              <p style={{ fontSize: '14px', color: '#2d3250', marginTop: '4px' }}>▌</p>
+            <div style={{ padding: '8px 20px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <style>{`@keyframes expand-bar{0%,100%{transform:scaleX(0.3);opacity:0.4}50%{transform:scaleX(1);opacity:1}}`}</style>
+              <span style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '0.09em', textTransform: 'uppercase', color: '#cc1a1a' }}>Cipher</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingTop: '2px' }}>
+                <div style={{ height: '2px', width: '60px', background: '#cc1a1a', borderRadius: '1px', animation: 'expand-bar 1.2s ease-in-out infinite', transformOrigin: 'left' }} />
+                <div style={{ height: '2px', width: '40px', background: '#cc1a1a', borderRadius: '1px', animation: 'expand-bar 1.2s ease-in-out infinite', animationDelay: '0.2s', transformOrigin: 'left', opacity: 0.6 }} />
+                <div style={{ height: '2px', width: '50px', background: '#cc1a1a', borderRadius: '1px', animation: 'expand-bar 1.2s ease-in-out infinite', animationDelay: '0.4s', transformOrigin: 'left', opacity: 0.3 }} />
+                <span style={{ fontSize: '11px', color: '#4a5480', letterSpacing: '0.06em', marginTop: '2px' }}>processing...</span>
+              </div>
             </div>
           )}
 
