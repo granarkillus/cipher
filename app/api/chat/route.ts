@@ -7,11 +7,11 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const TEXT_EXTENSIONS = ['txt', 'md', 'csv', 'json', 'ts', 'tsx', 'js', 'jsx', 'py', 'sql'];
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
-const GITHUB_OWNER = 'granarkillus';
-const GITHUB_REPO  = 'cipher';
+const GITHUB_OWNER  = 'granarkillus';
+const GITHUB_REPO   = 'cipher';
 const GITHUB_BRANCH = 'main';
 
-// ── Tool definitions ────────────────────────────────────────────────────────
+// ── Tool definitions ─────────────────────────────────────────────────────────
 
 const TOOLS: Anthropic.Tool[] = [
   {
@@ -27,32 +27,57 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'query_cipher_db',
+    description: 'Query the Cipher Supabase database directly. Use to check message counts, list memories, search memory content, or get recent conversation stats. Always use this when asked about database contents.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query_type: {
+          type: 'string',
+          enum: ['stats', 'memories_list', 'memories_search', 'recent_conversations'],
+          description: 'stats=counts of messages+memories. memories_list=all stored memories. memories_search=search memory facts. recent_conversations=latest messages.',
+        },
+        search_term: {
+          type: 'string',
+          description: 'Required for memories_search. Text to search for in memory facts.',
+        },
+        limit: {
+          type: 'integer',
+          description: 'Max results to return (default 10, max 50).',
+          minimum: 1,
+          maximum: 50,
+        },
+      },
+      required: ['query_type'],
+    },
+  },
+  {
     name: 'read_github_file',
     description: 'Read the current contents of a file in the cipher GitHub repo. Use this before modifying any file so you have the exact current content.',
     input_schema: {
       type: 'object' as const,
       properties: {
-        path: { type: 'string', description: 'File path relative to repo root, e.g. "app/page.tsx" or "app/api/chat/route.ts"' },
+        path: { type: 'string', description: 'File path relative to repo root, e.g. "app/page.tsx"' },
       },
       required: ['path'],
     },
   },
   {
     name: 'write_github_file',
-    description: 'Write or update a file in the cipher GitHub repo and commit the change. This triggers a Vercel auto-deploy. Always read the file first before writing.',
+    description: 'Write or update a file in the cipher GitHub repo and commit the change. Always read the file first. Always write the COMPLETE file. After writing, call check_vercel_deployment automatically.',
     input_schema: {
       type: 'object' as const,
       properties: {
-        path:           { type: 'string', description: 'File path relative to repo root, e.g. "app/page.tsx"' },
-        content:        { type: 'string', description: 'Complete file content to write. Must be the full file, never partial.' },
-        commit_message: { type: 'string', description: 'Short commit message describing the change.' },
+        path:           { type: 'string', description: 'File path relative to repo root.' },
+        content:        { type: 'string', description: 'Complete file content. Never partial.' },
+        commit_message: { type: 'string', description: 'Short commit message.' },
       },
       required: ['path', 'content', 'commit_message'],
     },
   },
   {
     name: 'check_vercel_deployment',
-    description: 'Check the status of the latest Vercel deployment for the cipher project. Use after committing a file to confirm it deployed successfully.',
+    description: 'Check the status of the latest Vercel deployment. Always call this after write_github_file. Report SHA and deployment state together.',
     input_schema: {
       type: 'object' as const,
       properties: {},
@@ -61,13 +86,13 @@ const TOOLS: Anthropic.Tool[] = [
   },
 ];
 
-// ── Tool execution ───────────────────────────────────────────────────────────
+// ── Tool execution ────────────────────────────────────────────────────────────
 
 async function execWriteMemory(
   input: { fact: string; importance: number },
   conversationId: string,
   supabase: ReturnType<typeof getServiceClient>
-): Promise<string> {
+): Promise<{ result: string; memoryWritten: boolean }> {
   try {
     const res = await fetch('https://api.voyageai.com/v1/embeddings', {
       method: 'POST',
@@ -81,50 +106,86 @@ async function execWriteMemory(
       source_conversation: conversationId,
       embedding: emb,
     });
-    return 'Memory saved.';
+    return { result: 'Memory saved.', memoryWritten: true };
   } catch (e) {
-    return `Memory save failed: ${e}`;
+    return { result: `Memory save failed: ${e}`, memoryWritten: false };
+  }
+}
+
+async function execQueryCipherDb(
+  input: { query_type: string; search_term?: string; limit?: number },
+  supabase: ReturnType<typeof getServiceClient>
+): Promise<string> {
+  const limit = Math.min(input.limit || 10, 50);
+  try {
+    switch (input.query_type) {
+      case 'stats': {
+        const [msgResult, memResult] = await Promise.all([
+          supabase.from('messages').select('*', { count: 'exact', head: true }),
+          supabase.from('memories').select('*', { count: 'exact', head: true }),
+        ]);
+        return JSON.stringify({
+          total_messages: msgResult.count ?? 0,
+          total_memories: memResult.count ?? 0,
+        });
+      }
+      case 'memories_list': {
+        const { data, error } = await supabase
+          .from('memories')
+          .select('id, fact, importance, created_at')
+          .order('importance', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(limit);
+        if (error) return `Error: ${error.message}`;
+        return JSON.stringify(data);
+      }
+      case 'memories_search': {
+        if (!input.search_term) return 'Error: search_term required for memories_search';
+        const { data, error } = await supabase
+          .from('memories')
+          .select('id, fact, importance, created_at')
+          .ilike('fact', `%${input.search_term}%`)
+          .limit(limit);
+        if (error) return `Error: ${error.message}`;
+        return JSON.stringify(data);
+      }
+      case 'recent_conversations': {
+        const { data, error } = await supabase
+          .from('messages')
+          .select('conversation_id, role, content, created_at')
+          .order('created_at', { ascending: false })
+          .limit(limit);
+        if (error) return `Error: ${error.message}`;
+        return JSON.stringify(data);
+      }
+      default:
+        return `Unknown query_type: ${input.query_type}`;
+    }
+  } catch (e) {
+    return `Query failed: ${e}`;
   }
 }
 
 async function execReadGithubFile(input: { path: string }): Promise<string> {
   try {
-    const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${input.path}?ref=${GITHUB_BRANCH}`;
-    const res = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-      },
-    });
-    if (!res.ok) return `Error reading file: ${res.status} ${await res.text()}`;
+    const res = await fetch(
+      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${input.path}?ref=${GITHUB_BRANCH}`,
+      { headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } }
+    );
+    if (!res.ok) return `Error: ${res.status} ${await res.text()}`;
     const data = await res.json();
-    const content = Buffer.from(data.content, 'base64').toString('utf8');
-    return JSON.stringify({ content, sha: data.sha });
-  } catch (e) {
-    return `Error: ${e}`;
-  }
+    return JSON.stringify({ content: Buffer.from(data.content, 'base64').toString('utf8'), sha: data.sha });
+  } catch (e) { return `Error: ${e}`; }
 }
 
 async function execWriteGithubFile(input: { path: string; content: string; commit_message: string }): Promise<string> {
   try {
-    // Get current SHA first
-    const getUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${input.path}?ref=${GITHUB_BRANCH}`;
-    const getRes = await fetch(getUrl, {
-      headers: {
-        Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-      },
-    });
+    const getRes = await fetch(
+      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${input.path}?ref=${GITHUB_BRANCH}`,
+      { headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } }
+    );
+    const sha = getRes.ok ? (await getRes.json()).sha : undefined;
 
-    let sha: string | undefined;
-    if (getRes.ok) {
-      const existing = await getRes.json();
-      sha = existing.sha;
-    }
-
-    const putUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${input.path}`;
     const body: Record<string, string> = {
       message: input.commit_message,
       content: Buffer.from(input.content, 'utf8').toString('base64'),
@@ -132,45 +193,28 @@ async function execWriteGithubFile(input: { path: string; content: string; commi
     };
     if (sha) body.sha = sha;
 
-    const putRes = await fetch(putUrl, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!putRes.ok) return `Error writing file: ${putRes.status} ${await putRes.text()}`;
+    const putRes = await fetch(
+      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${input.path}`,
+      { method: 'PUT', headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    );
+    if (!putRes.ok) return `Error: ${putRes.status} ${await putRes.text()}`;
     const result = await putRes.json();
-    return `File committed. SHA: ${result.content?.sha?.slice(0, 7)}. Vercel deploy triggered.`;
-  } catch (e) {
-    return `Error: ${e}`;
-  }
+    return `Committed. SHA: ${result.content?.sha?.slice(0, 7)}`;
+  } catch (e) { return `Error: ${e}`; }
 }
 
 async function execCheckVercelDeployment(): Promise<string> {
   try {
-    const url = `https://api.vercel.com/v6/deployments?projectId=${process.env.VERCEL_PROJECT_ID}&limit=1`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${process.env.VERCEL_TOKEN}` },
-    });
-    if (!res.ok) return `Error checking deployment: ${res.status}`;
+    const res = await fetch(
+      `https://api.vercel.com/v6/deployments?projectId=${process.env.VERCEL_PROJECT_ID}&limit=1`,
+      { headers: { Authorization: `Bearer ${process.env.VERCEL_TOKEN}` } }
+    );
+    if (!res.ok) return `Error: ${res.status}`;
     const data = await res.json();
     const d = data.deployments?.[0];
     if (!d) return 'No deployments found.';
-    return JSON.stringify({
-      state:   d.state,
-      ready:   d.readyState,
-      created: new Date(d.createdAt).toISOString(),
-      url:     d.url,
-      commit:  d.meta?.githubCommitMessage || 'unknown',
-    });
-  } catch (e) {
-    return `Error: ${e}`;
-  }
+    return JSON.stringify({ state: d.state, readyState: d.readyState, created: new Date(d.createdAt).toISOString(), url: d.url, commit: d.meta?.githubCommitMessage || 'unknown' });
+  } catch (e) { return `Error: ${e}`; }
 }
 
 async function executeTool(
@@ -180,10 +224,10 @@ async function executeTool(
   supabase: ReturnType<typeof getServiceClient>
 ): Promise<{ result: string; memoryWritten?: boolean }> {
   switch (name) {
-    case 'write_memory': {
-      const r = await execWriteMemory(input as { fact: string; importance: number }, conversationId, supabase);
-      return { result: r, memoryWritten: r === 'Memory saved.' };
-    }
+    case 'write_memory':
+      return execWriteMemory(input as { fact: string; importance: number }, conversationId, supabase);
+    case 'query_cipher_db':
+      return { result: await execQueryCipherDb(input as { query_type: string; search_term?: string; limit?: number }, supabase) };
     case 'read_github_file':
       return { result: await execReadGithubFile(input as { path: string }) };
     case 'write_github_file':
@@ -195,7 +239,7 @@ async function executeTool(
   }
 }
 
-// ── Embedding ────────────────────────────────────────────────────────────────
+// ── Embedding ─────────────────────────────────────────────────────────────────
 
 async function embed(text: string): Promise<number[]> {
   const res = await fetch('https://api.voyageai.com/v1/embeddings', {
@@ -207,7 +251,7 @@ async function embed(text: string): Promise<number[]> {
   return (await res.json()).data[0].embedding;
 }
 
-// ── Main handler ─────────────────────────────────────────────────────────────
+// ── Main handler ──────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
   try {
@@ -220,11 +264,10 @@ export async function POST(request: NextRequest) {
 
     if (contentType.includes('multipart/form-data')) {
       const fd = await request.formData();
-      message       = (fd.get('message') as string) || '';
+      message        = (fd.get('message') as string) || '';
       conversationId = (fd.get('conversationId') as string) || '';
-      model         = (fd.get('model') as string) || 'claude-haiku-4-5-20251001';
-      const file    = fd.get('file') as File | null;
-
+      model          = (fd.get('model') as string) || 'claude-haiku-4-5-20251001';
+      const file     = fd.get('file') as File | null;
       if (file) {
         fileName = file.name;
         const ext = file.name.split('.').pop()?.toLowerCase() || '';
@@ -240,10 +283,10 @@ export async function POST(request: NextRequest) {
         }
       }
     } else {
-      const body    = await request.json();
-      message       = body.message || '';
+      const body     = await request.json();
+      message        = body.message || '';
       conversationId = body.conversationId || '';
-      model         = body.model || 'claude-haiku-4-5-20251001';
+      model          = body.model || 'claude-haiku-4-5-20251001';
     }
 
     if ((!message?.trim() && !imageData && !fileText) || !conversationId) {
@@ -273,21 +316,22 @@ export async function POST(request: NextRequest) {
       ? `Relevant past context:\n${similarMessages.map((m: { role: string; content: string }) => `[${m.role}]: ${m.content.slice(0, 300)}`).join('\n')}\n\n`
       : '';
 
-    const systemPrompt = `${coreSection}You are Cipher, a personal AI with access to stored memories, core facts, and tools to read and write the cipher GitHub repo directly.
+    const systemPrompt = `${coreSection}You are Cipher, a personal AI with access to stored memories, core facts, direct database access, and tools to read/write the cipher GitHub repo.
 
-${memSection}${ctxSection}TOOLS AVAILABLE:
+${memSection}${ctxSection}TOOLS:
 - write_memory: store a new memory when Markham corrects you or shares something new
+- query_cipher_db: query the Supabase database directly — use for message counts, memory lists, searches
 - read_github_file: read any file in the cipher repo before modifying it
-- write_github_file: commit a file change directly to GitHub (triggers Vercel deploy)
-- check_vercel_deployment: check if the latest deploy succeeded
+- write_github_file: commit a file directly to GitHub (triggers Vercel deploy) — always read first, always write complete file, always call check_vercel_deployment after
+- check_vercel_deployment: check deploy status — always call after write_github_file, report SHA + state together
 
-RULES for code changes:
-1. Always read_github_file FIRST before writing
-2. Always write the COMPLETE file — never partial
-3. After writing, check_vercel_deployment to confirm deploy status
-4. Report back what changed and the deployment state
+RULES:
+- Never report a tool action complete without verified result
+- After write_github_file: always call check_vercel_deployment, report SHA + deployment state in one message
+- For database questions: always use query_cipher_db instead of guessing
+- For code changes: read → modify complete file → write → check deployment
 
-Rules for code blocks in chat: wrap in markdown with language specified.
+Rules for code in chat: wrap in markdown code blocks with language. Never truncate.
 Be direct. Match the register. Don't pad.`;
 
     type TextBlock     = { type: 'text'; text: string };
@@ -312,16 +356,15 @@ Be direct. Match the register. Don't pad.`;
       { role: 'user', content: userContent as Anthropic.ContentBlockParam[] },
     ];
 
-    // Agentic tool loop — keep running until stop_reason is 'end_turn'
+    // Agentic tool loop
     let currentMessages = [...claudeMessages];
     let reply = '';
     let memoryWritten = false;
     let iterations = 0;
-    const MAX_ITERATIONS = 8;
+    const MAX_ITERATIONS = 10;
 
     while (iterations < MAX_ITERATIONS) {
       iterations++;
-
       const completion = await anthropic.messages.create({
         model,
         max_tokens: 8096,
@@ -330,13 +373,11 @@ Be direct. Match the register. Don't pad.`;
         messages: currentMessages,
       });
 
-      // Collect any text from this turn
       const textBlocks = completion.content.filter(b => b.type === 'text') as Anthropic.TextBlock[];
       if (textBlocks.length) reply = textBlocks.map(b => b.text).join('');
 
       if (completion.stop_reason !== 'tool_use') break;
 
-      // Execute all tool calls in this turn
       const toolUseBlocks = completion.content.filter(b => b.type === 'tool_use') as Anthropic.ToolUseBlock[];
       const toolResults: Anthropic.ToolResultBlockParam[] = [];
 
@@ -351,7 +392,6 @@ Be direct. Match the register. Don't pad.`;
         toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: result });
       }
 
-      // Append assistant turn + tool results and loop
       currentMessages = [
         ...currentMessages,
         { role: 'assistant', content: completion.content },
