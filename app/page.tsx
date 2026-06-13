@@ -407,3 +407,149 @@ export default function ChatPage() {
               }}>
                 {msg.role === 'user' ? 'You' : 'Cipher'}
               </span>
+<p style={{
+                fontSize:   '14px',
+                lineHeight: '1.65',
+                color:      msg.role === 'user' ? '#dce8f5' : '#c8cfe0',
+                whiteSpace: 'pre-wrap',
+                wordBreak:  'break-word',
+                margin:     0,
+              }}>
+                {msg.content}
+              </p>
+            </div>
+          ))}
+
+          {loading && (
+            <div style={{
+              padding: '8px 24px',
+              maxWidth: '740px',
+              width: '100%',
+              margin: '0 auto',
+            }}>
+              <span style={{
+                fontSize:      '10px',
+                fontWeight:    '700',
+                letterSpacing: '0.09em',
+                textTransform: 'uppercase',
+                color: '#cc1a1a',
+              }}>
+                Cipher
+              </span>
+              <p style={{ fontSize: '14px', color: '#2d3250', marginTop: '4px' }}>▌</p>
+            </div>
+          )}
+
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input bar */}
+        <div style={{
+          background: '#0f1220',
+          borderTop: '1px solid #2d3250',
+          padding: '10px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '6px',
+          flexShrink: 0,
+        }}>
+          {imagePreview && (
+            <div style={{ position: 'relative', display: 'inline-block', alignSelf: 'flex-start' }}>
+              <img
+                src={imagePreview}
+                alt="preview"
+                style={{ height: '60px', borderRadius: '4px', border: '1px solid #2d3250' }}
+              />
+              <button
+                onClick={clearImage}
+                style={{
+                  position: 'absolute', top: '-6px', right: '-6px',
+                  background: '#cc1a1a', color: '#fff', border: 'none',
+                  borderRadius: '50%', width: '16px', height: '16px',
+                  fontSize: '10px', cursor: 'pointer', lineHeight: 1,
+                }}
+              >×</button>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageSelect}
+              style={{ display: 'none' }}
+            />
+
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              title="Attach image"
+              style={{
+                background: 'transparent',
+                color: '#4a5480',
+                border: '1px solid #2d3250',
+                borderRadius: '6px',
+                padding: '9px 10px',
+                fontSize: '14px',
+                height: '40px',
+                cursor: 'pointer',
+                lineHeight: 1,
+              }}
+            >
+              🖼
+            </button>
+
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Transmit..."
+              rows={1}
+              style={{
+                flex:         1,
+                background:   '#1c2035',
+                border:       '1px solid #2d3250',
+                borderRadius: '6px',
+                padding:      '9px 12px',
+                fontSize:     '14px',
+                lineHeight:   '1.5',
+                color:        '#eef0f8',
+                resize:       'none',
+                outline:      'none',
+                maxHeight:    '160px',
+                overflowY:    'auto',
+              }}
+              onInput={e => {
+                const el = e.currentTarget;
+                el.style.height = 'auto';
+                el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+              }}
+            />
+
+            <button
+              onClick={sendMessage}
+              disabled={loading || (!input.trim() && !imageFile)}
+              style={{
+                background:    loading || (!input.trim() && !imageFile) ? 'rgba(56,189,248,0.25)' : '#38bdf8',
+                color:         loading || (!input.trim() && !imageFile) ? '#4a5480' : '#0c0e17',
+                border:        'none',
+                borderRadius:  '6px',
+                padding:       '9px 16px',
+                fontSize:      '12px',
+                fontWeight:    '700',
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                height:        '40px',
+                transition:    'all 0.15s',
+                cursor:        loading || (!input.trim() && !imageFile) ? 'not-allowed' : 'pointer',
+              }}
+            >
+              Send
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
