@@ -76,6 +76,20 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'patch_github_file',
+    description: 'Make a surgical edit to a file in the cipher GitHub repo. Find exact search string, replace with replacement string, commit. No full file rewrite needed.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        path:           { type: 'string', description: 'File path relative to repo root.' },
+        search:         { type: 'string', description: 'Exact string to find and replace.' },
+        replacement:    { type: 'string', description: 'String to replace search with.' },
+        commit_message: { type: 'string', description: 'Short commit message.' },
+      },
+      required: ['path', 'search', 'replacement', 'commit_message'],
+    },
+  },
+  {
     name: 'check_vercel_deployment',
     description: 'Check the status of the latest Vercel deployment. Always call this after write_github_file. Report SHA and deployment state together.',
     input_schema: {
@@ -214,6 +228,44 @@ async function execWriteGithubFile(input: { path: string; content: string; commi
   } catch (e) { return `Error: ${e}`; }
 }
 
+async function execPatchGithubFile(input: { path: string; search: string; replacement: string; commit_message: string }): Promise<string> {
+  try {
+    const getRes = await fetch(
+      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${input.path}?ref=${GITHUB_BRANCH}`,
+      { headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } }
+    );
+    if (!getRes.ok) return `Error reading file: ${getRes.status}`;
+    
+    const data = await getRes.json();
+    const sha = data.sha;
+    const currentContent = Buffer.from(data.content, 'base64').toString('utf8');
+
+    if (!currentContent.includes(input.search)) {
+      return `Error: search string not found in file`;
+    }
+
+    const newContent = currentContent.replace(input.search, input.replacement);
+
+    const putRes = await fetch(
+      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${input.path}`,
+      { 
+        method: 'PUT', 
+        headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({
+          message: input.commit_message,
+          content: Buffer.from(newContent, 'utf8').toString('base64'),
+          sha: sha,
+          branch: GITHUB_BRANCH,
+        })
+      }
+    );
+    if (!putRes.ok) return `Error committing: ${putRes.status} ${await putRes.text()}`;
+    
+    const result = await putRes.json();
+    return `Patched and committed. SHA: ${result.content?.sha?.slice(0, 7)}`;
+  } catch (e) { return `Error: ${e}`; }
+}
+
 async function execCheckVercelDeployment(): Promise<string> {
   try {
     const res = await fetch(
@@ -243,6 +295,8 @@ async function executeTool(
       return { result: await execReadGithubFile(input as { path: string }) };
     case 'write_github_file':
       return { result: await execWriteGithubFile(input as { path: string; content: string; commit_message: string }) };
+    case 'patch_github_file':
+      return { result: await execPatchGithubFile(input as { path: string; search: string; replacement: string; commit_message: string }) };
     case 'check_vercel_deployment':
       return { result: await execCheckVercelDeployment() };
     default:
@@ -334,6 +388,7 @@ ${memSection}${ctxSection}TOOLS:
 - query_cipher_db: query the Supabase database directly — use for message counts, memory lists, searches
 - read_github_file: read any file in the cipher repo before modifying it
 - write_github_file: commit a file directly to GitHub (triggers Vercel deploy) — always read first, always write complete file, always call check_vercel_deployment after
+- patch_github_file: surgical edit tool — find exact search string, replace with replacement, commit
 - check_vercel_deployment: check deploy status — always call after write_github_file, report SHA + state together
 
 RULES:
