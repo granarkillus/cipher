@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  time?: string;
 }
 
 interface ModelOption {
@@ -34,6 +35,17 @@ function formatDate(dateStr: string): string {
   if (diffDays === 1) return 'Yesterday';
   if (diffDays < 7) return `${diffDays}d ago`;
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function now(): string {
+  return new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+// Importance color helper — ready for memory sidebar
+export function importanceColor(importance: number): string {
+  if (importance >= 5) return '#22c55e';
+  if (importance >= 3) return '#f59e0b';
+  return '#4a5480';
 }
 
 function extractArtifact(content: string): Artifact | null {
@@ -182,9 +194,10 @@ export default function ChatPage() {
     const text = input.trim();
     if ((!text && !file) || loading || !conversationId) return;
 
+    const timestamp = now();
     setInput('');
     setError(false);
-    setMessages(prev => [...prev, { role: 'user', content: text || `[${file?.name}]` }]);
+    setMessages(prev => [...prev, { role: 'user', content: text || `[${file?.name}]`, time: timestamp }]);
     setLoading(true);
 
     try {
@@ -208,7 +221,7 @@ export default function ChatPage() {
       if (data.error) throw new Error(data.error);
 
       const reply = data.reply as string;
-      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: reply, time: now() }]);
 
       if (data.memoryWritten) {
         setMemoryToast(true);
@@ -225,7 +238,7 @@ export default function ChatPage() {
       refreshConversations();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Something went wrong';
-      setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${msg}` }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${msg}`, time: now() }]);
       setError(true);
       setTimeout(() => setError(false), 5000);
     } finally {
@@ -273,7 +286,19 @@ export default function ChatPage() {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: '#0c0e17' }}>
+    <div style={{ display: 'flex', height: '100vh', background: '#0c0e17', position: 'relative' }}>
+
+      {/* Lion background */}
+      <img
+        src="/lion.jpg"
+        alt=""
+        style={{
+          position: 'fixed', top: 0, left: 0,
+          width: '100%', height: '100%',
+          objectFit: 'cover', opacity: 0.08,
+          zIndex: 0, pointerEvents: 'none',
+        }}
+      />
 
       {/* Memory saved toast */}
       {memoryToast && (
@@ -293,9 +318,10 @@ export default function ChatPage() {
       {/* ── Sidebar ── */}
       {sidebarOpen && (
         <div style={{
-          width: '200px', background: '#0f1220',
+          width: '200px', background: 'rgba(15,18,32,0.92)',
           borderRight: '1px solid #2d3250',
           display: 'flex', flexDirection: 'column', flexShrink: 0,
+          position: 'relative', zIndex: 1,
         }}>
           <div style={{
             padding: '14px 12px', borderBottom: '1px solid #2d3250',
@@ -343,10 +369,10 @@ export default function ChatPage() {
       )}
 
       {/* ── Chat column ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative', zIndex: 1 }}>
 
         <header style={{
-          background: '#0f1220', borderBottom: '1px solid #2d3250',
+          background: 'rgba(15,18,32,0.92)', borderBottom: '1px solid #2d3250',
           padding: '0 16px', height: '50px',
           display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0,
         }}>
@@ -426,13 +452,18 @@ export default function ChatPage() {
               padding: '8px 20px', width: '100%',
               display: 'flex', flexDirection: 'column', gap: '4px',
             }}>
-              <span style={{
-                fontSize: '10px', fontWeight: '700', letterSpacing: '0.09em',
-                textTransform: 'uppercase',
-                color: msg.role === 'user' ? '#38bdf8' : '#cc1a1a',
-              }}>
-                {msg.role === 'user' ? 'You' : 'Cipher'}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{
+                  fontSize: '10px', fontWeight: '700', letterSpacing: '0.09em',
+                  textTransform: 'uppercase',
+                  color: msg.role === 'user' ? '#38bdf8' : '#cc1a1a',
+                }}>
+                  {msg.role === 'user' ? 'You' : 'Cipher'}
+                </span>
+                {msg.time && (
+                  <span style={{ fontSize: '10px', color: '#4a5480' }}>{msg.time}</span>
+                )}
+              </div>
               <div style={{ fontSize: '14px', lineHeight: '1.65', color: msg.role === 'user' ? '#dce8f5' : '#c8cfe0' }}>
                 {msg.role === 'assistant' ? (
                   <ReactMarkdown
@@ -504,7 +535,7 @@ export default function ChatPage() {
 
         {/* Input bar */}
         <div style={{
-          background: '#0f1220', borderTop: '1px solid #2d3250',
+          background: 'rgba(15,18,32,0.92)', borderTop: '1px solid #2d3250',
           padding: '10px 16px', display: 'flex', flexDirection: 'column',
           gap: '6px', flexShrink: 0,
         }}>
@@ -580,9 +611,10 @@ export default function ChatPage() {
       {/* ── Artifact panel ── */}
       {artifact && (
         <div style={{
-          width: '420px', background: '#0f1220',
+          width: '420px', background: 'rgba(15,18,32,0.95)',
           borderLeft: '1px solid #2d3250',
           display: 'flex', flexDirection: 'column', flexShrink: 0,
+          position: 'relative', zIndex: 1,
         }}>
           <div style={{
             padding: '0 16px', height: '50px', borderBottom: '1px solid #2d3250',
