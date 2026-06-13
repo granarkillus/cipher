@@ -577,7 +577,9 @@ export default function ChatPage() {
                 )}
               </div>
             </div>
-          ))}
+            </div>
+            );
+          })}
 
           {loading && (
             <div style={{ padding: '8px 20px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
