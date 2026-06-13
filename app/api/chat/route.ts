@@ -25,9 +25,35 @@ async function embed(text: string): Promise<number[]> {
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, conversationId, model = 'claude-sonnet-4-6' } = await request.json();
+    const contentType = request.headers.get('content-type') || '';
+    
+    let message = '';
+    let conversationId = '';
+    let model = 'claude-sonnet-4-6';
+    let imageData: string | null = null;
+    let imageMediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' | null = null;
 
-    if (!message?.trim() || !conversationId) {
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await request.formData();
+      message = (formData.get('message') as string) || '';
+      conversationId = (formData.get('conversationId') as string) || '';
+      model = (formData.get('model') as string) || 'claude-sonnet-4-6';
+      const imageFile = formData.get('image') as File | null;
+
+      if (imageFile) {
+        const arrayBuffer = await imageFile.arrayBuffer();
+        const base64 = Buffer.from(arrayBuffer).toString('base64');
+        imageData = base64;
+        imageMediaType = (imageFile.type as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp') || 'image/jpeg';
+      }
+    } else {
+      const body = await request.json();
+      message = body.message || '';
+      conversationId = body.conversationId || '';
+      model = body.model || 'claude-sonnet-4-6';
+    }
+
+    if ((!message?.trim() && !imageData) || !conversationId) {
       return NextResponse.json(
         { error: 'message and conversationId are required' },
         { status: 400 }
@@ -36,7 +62,8 @@ export async function POST(request: NextRequest) {
 
     const supabase = getServiceClient();
 
-    const embedding = await embed(message);
+    const textToEmbed = message.trim() || '[image uploaded]';
+    const embedding = await embed(textToEmbed);
 
     const { data: similarMessages } = await supabase.rpc('match_messages', {
       query_embedding: embedding,
@@ -63,12 +90,35 @@ export async function POST(request: NextRequest) {
 
 ${contextSection}Be direct. Match the register of the message. Don't pad responses.`;
 
-    const claudeMessages: { role: 'user' | 'assistant'; content: string }[] = [
+    type TextBlock = { type: 'text'; text: string };
+    type ImageBlock = { type: 'image'; source: { type: 'base64'; media_type: string; data: string } };
+    type ContentBlock = TextBlock | ImageBlock;
+
+    const userContent: ContentBlock[] = [];
+
+    if (imageData && imageMediaType) {
+      userContent.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: imageMediaType,
+          data: imageData,
+        },
+      });
+    }
+
+    if (message.trim()) {
+      userContent.push({ type: 'text', text: message });
+    } else if (imageData) {
+      userContent.push({ type: 'text', text: 'What do you see in this image?' });
+    }
+
+    const claudeMessages: { role: 'user' | 'assistant'; content: string | ContentBlock[] }[] = [
       ...recentHistory.map((m: { role: string; content: string }) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
       })),
-      { role: 'user', content: message },
+      { role: 'user', content: userContent },
     ];
 
     const completion = await anthropic.messages.create({
@@ -81,11 +131,15 @@ ${contextSection}Be direct. Match the register of the message. Don't pad respons
     const reply =
       completion.content[0].type === 'text' ? completion.content[0].text : '';
 
+    const userMessageContent = message.trim()
+      ? imageData ? `[image] ${message}` : message
+      : '[image uploaded]';
+
     await supabase.from('messages').insert([
       {
         conversation_id: conversationId,
         role: 'user',
-        content: message,
+        content: userMessageContent,
         embedding,
       },
       {
