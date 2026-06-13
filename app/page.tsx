@@ -505,8 +505,24 @@ export default function ChatPage() {
             </div>
           )}
 
-          {messages.map((msg, i) => (
-            <div key={i} style={{
+          {messages.map((msg, i) => {
+            const prevMsg = messages[i - 1];
+            const showDateSep = i === 0 || (
+              prevMsg?.created_at && msg.created_at &&
+              new Date(msg.created_at).toDateString() !== new Date(prevMsg.created_at).toDateString()
+            );
+            return (
+            <div key={i}>
+              {showDateSep && msg.created_at && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 20px 8px' }}>
+                  <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg,transparent,#2d3250)' }} />
+                  <span style={{ fontSize: '10px', color: '#4a5480', letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                    {new Date(msg.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span>
+                  <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg,#2d3250,transparent)' }} />
+                </div>
+              )}
+            <div style={{
               padding: '8px 20px', width: '100%',
               display: 'flex', flexDirection: 'column', gap: '4px',
             }}>
