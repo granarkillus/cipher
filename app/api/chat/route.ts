@@ -34,8 +34,8 @@ const TOOLS: Anthropic.Tool[] = [
       properties: {
         query_type: {
           type: 'string',
-          enum: ['stats', 'memories_list', 'memories_search', 'recent_conversations'],
-          description: 'stats=counts of messages+memories. memories_list=all stored memories. memories_search=search memory facts. recent_conversations=latest messages.',
+          enum: ['stats', 'memories_list', 'memories_search', 'messages_search', 'recent_conversations'],
+          description: 'stats=counts. memories_list=all memories. memories_search=search memory facts. messages_search=search raw message content. recent_conversations=latest messages.',
         },
         search_term: {
           type: 'string',
@@ -153,6 +153,17 @@ async function execQueryCipherDb(
         const { data, error } = await supabase
           .from('messages')
           .select('conversation_id, role, content, created_at')
+          .order('created_at', { ascending: false })
+          .limit(limit);
+        if (error) return `Error: ${error.message}`;
+        return JSON.stringify(data);
+      }
+      case 'messages_search': {
+        if (!input.search_term) return 'Error: search_term required for messages_search';
+        const { data, error } = await supabase
+          .from('messages')
+          .select('role, content, created_at, conversation_id')
+          .ilike('content', `%${input.search_term}%`)
           .order('created_at', { ascending: false })
           .limit(limit);
         if (error) return `Error: ${error.message}`;
