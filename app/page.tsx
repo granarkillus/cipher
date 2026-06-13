@@ -578,7 +578,7 @@ export default function ChatPage() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Transmit..."
+              placeholder="Message Cipher..."
               rows={1}
               style={{
                 flex: 1, background: '#1c2035', border: '1px solid #2d3250',
