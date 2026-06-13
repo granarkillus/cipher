@@ -1,3 +1,4 @@
+```tsx
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getBrowserClient } from '@/lib/supabase';
@@ -197,8 +198,214 @@ export default function ChatPage() {
             borderBottom: '1px solid #2d3250',
             display: 'flex',
             alignItems: 'center',
+            ```tsx
             gap: '8px',
           }}>
             <span style={{
               color: '#cc1a1a',
               fontSize: '13px',
+              fontWeight: '700',
+              letterSpacing: '0.08em',
+              flex: 1,
+            }}>
+              ◈ CIPHER
+            </span>
+            <button
+              onClick={handleNewChat}
+              style={{
+                background: 'rgba(56,189,248,0.12)',
+                color: '#38bdf8',
+                border: '1px solid rgba(56,189,248,0.30)',
+                borderRadius: '4px',
+                padding: '3px 8px',
+                fontSize: '11px',
+                fontWeight: '600',
+                letterSpacing: '0.04em',
+                cursor: 'pointer',
+              }}
+            >
+              NEW
+            </button>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
+            {conversations.length === 0 ? (
+              <p style={{
+                color: '#4a5480',
+                fontSize: '12px',
+                padding: '16px 12px',
+                textAlign: 'center',
+              }}>
+                No history yet
+              </p>
+            ) : (
+              conversations.map(conv => (
+                <button
+                  key={conv.conversation_id}
+                  onClick={() => loadConversation(conv.conversation_id)}
+                  style={{
+                    width: '100%',
+                    background: conv.conversation_id === conversationId
+                      ? 'rgba(56,189,248,0.08)' : 'transparent',
+                    border: 'none',
+                    borderLeft: conv.conversation_id === conversationId
+                      ? '2px solid #38bdf8' : '2px solid transparent',
+                    padding: '8px 12px',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px',
+                  }}
+                >
+                  <span style={{
+                    fontSize: '12px',
+                    color: conv.conversation_id === conversationId ? '#eef0f8' : '#8892b0',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    display: 'block',
+                    maxWidth: '190px',
+                  }}>
+                    {conv.preview?.slice(0, 45) || 'Conversation'}
+                  </span>
+                  <span style={{ fontSize: '10px', color: '#4a5480' }}>
+                    {formatDate(conv.last_active)} · {conv.message_count}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Main area */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+
+        {/* Header */}
+        <header style={{
+          background: '#0f1220',
+          borderBottom: '1px solid #2d3250',
+          padding: '0 16px',
+          height: '50px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          flexShrink: 0,
+        }}>
+          <button
+            onClick={() => setSidebarOpen(s => !s)}
+            style={{
+              background: 'transparent',
+              color: '#4a5480',
+              border: 'none',
+              fontSize: '16px',
+              padding: '4px 6px',
+              cursor: 'pointer',
+              lineHeight: 1,
+            }}
+            title="Toggle sidebar"
+          >
+            ☰
+          </button>
+
+          {!sidebarOpen && (
+            <span style={{
+              color: '#cc1a1a',
+              fontSize: '14px',
+              fontWeight: '700',
+              letterSpacing: '0.08em',
+            }}>
+              ◈ CIPHER
+            </span>
+          )}
+
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'nowrap', marginRight: 'auto' }}>
+            {(models.length ? models : [
+              { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
+              { id: 'claude-sonnet-4-6',         label: 'Sonnet 4.6' },
+              { id: 'claude-opus-4-8',           label: 'Opus 4.8' },
+              { id: 'claude-fable-5',            label: 'Fable 5' },
+            ]).map(m => {
+              const active = m.id === model;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setModel(m.id)}
+                  style={{
+                    background:    active ? 'rgba(56,189,248,0.12)' : 'transparent',
+                    color:         active ? '#38bdf8' : '#4a5480',
+                    border:        active ? '1px solid rgba(56,189,248,0.30)' : '1px solid #2d3250',
+                    borderRadius:  '4px',
+                    padding:       '3px 8px',
+                    fontSize:      '11px',
+                    fontWeight:    active ? '600' : '500',
+                    letterSpacing: '0.05em',
+                    transition:    'all 0.15s',
+                    cursor:        'pointer',
+                  }}
+                >
+                  {pillLabel(m.label)}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={handleSignOut}
+            style={{
+              background:    'transparent',
+              color:         '#4a5480',
+              border:        'none',
+              fontSize:      '11px',
+              padding:       '3px 4px',
+              letterSpacing: '0.04em',
+              cursor:        'pointer',
+            }}
+          >
+            OUT
+          </button>
+        </header>
+
+        {/* Messages */}
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '20px 0 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2px',
+        }}>
+          {messages.length === 0 && (
+            <div style={{
+              margin: 'auto',
+              textAlign: 'center',
+              color: '#2d3250',
+              padding: '40px 20px',
+            }}>
+              <p style={{ fontSize: '32px', marginBottom: '10px' }}>◈</p>
+              <p style={{ fontSize: '13px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Online
+              </p>
+            </div>
+          )}
+
+          {messages.map((msg, i) => (
+            <div key={i} style={{
+              padding:       '8px 24px',
+              maxWidth:      '740px',
+              width:         '100%',
+              margin:        '0 auto',
+              display:       'flex',
+              flexDirection: 'column',
+              gap:           '4px',
+            }}>
+              <span style={{
+                fontSize:      '10px',
+                fontWeight:    '700',
+                letterSpacing: '0.09em',
+                textTransform: 'uppercase',
+                color: msg.role === 'user' ? '#38bdf8' : '#cc1a1a',
+              }}>
+                {msg.role === 'user' ? 'You' : 'Cipher'}
+              </span>
