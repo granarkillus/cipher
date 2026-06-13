@@ -87,6 +87,9 @@ export default function ChatPage() {
   const [conversationId, setConversationId] = useState<string>('');
   const [conversations, setConversations]   = useState<Conversation[]>([]);
   const [sidebarOpen, setSidebarOpen]       = useState(true);
+  const [renamingId, setRenamingId]         = useState<string | null>(null);
+  const [renameValue, setRenameValue]       = useState('');
+  const [titles, setTitles]                 = useState<Record<string, string>>({});
   const [artifact, setArtifact]             = useState<Artifact | null>(null);
   const [artifactFilename, setArtifactFilename] = useState('');
   const [copied, setCopied]                 = useState(false);
