@@ -1,4 +1,3 @@
-```tsx
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getBrowserClient } from '@/lib/supabase';
@@ -198,7 +197,6 @@ export default function ChatPage() {
             borderBottom: '1px solid #2d3250',
             display: 'flex',
             alignItems: 'center',
-            ```tsx
             gap: '8px',
           }}>
             <span style={{
