@@ -133,6 +133,31 @@ export default function ChatPage() {
       .catch(() => {});
   }, []);
 
+  const refreshTitles = useCallback(() => {
+    fetch('/api/conversations/title')
+      .then(r => r.json())
+      .then(d => {
+        if (d.titles) {
+          const map: Record<string, string> = {};
+          for (const row of d.titles) map[row.conversation_id] = row.title;
+          setTitles(map);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveTitle = useCallback(async (id: string, title: string) => {
+    const trimmed = title.trim();
+    if (!trimmed) { setRenamingId(null); return; }
+    await fetch('/api/conversations/title', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversationId: id, title: trimmed }),
+    }).catch(() => {});
+    setTitles(prev => ({ ...prev, [id]: trimmed }));
+    setRenamingId(null);
+  }, []);
+
   useEffect(() => { refreshConversations(); }, [refreshConversations]);
 
   useEffect(() => {
