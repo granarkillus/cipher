@@ -70,7 +70,8 @@ export default function ChatPage() {
   const [input, setInput]                   = useState('');
   const [loading, setLoading]               = useState(false);
   const [error, setError]                   = useState(false);
-  const [model, setModel]                   = useState('claude-sonnet-4-6');
+  const [memoryToast, setMemoryToast]       = useState(false);
+  const [model, setModel]                   = useState('claude-haiku-4-5-20251001');
   const [models, setModels]                 = useState<ModelOption[]>([]);
   const [conversationId, setConversationId] = useState<string>('');
   const [conversations, setConversations]   = useState<Conversation[]>([]);
@@ -85,7 +86,6 @@ export default function ChatPage() {
   const fileInputRef                        = useRef<HTMLInputElement>(null);
   const router                              = useRouter();
 
-  // Status indicator config
   const status = error ? 'error' : loading ? 'thinking' : 'online';
   const statusConfig = {
     online:   { dot: '#22c55e', label: 'ONLINE' },
@@ -210,6 +210,11 @@ export default function ChatPage() {
       const reply = data.reply as string;
       setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
 
+      if (data.memoryWritten) {
+        setMemoryToast(true);
+        setTimeout(() => setMemoryToast(false), 3000);
+      }
+
       const detected = extractArtifact(reply);
       if (detected) {
         setArtifact(detected);
@@ -250,7 +255,7 @@ export default function ChatPage() {
     router.push('/login');
   };
 
-  const pillLabel = (label: string) => label.split(' ')[0].toUpperCase();
+  const pillLabel = (l: string) => l.split(' ')[0].toUpperCase();
 
   const codeStyle = {
     background: '#1c2035',
@@ -269,6 +274,21 @@ export default function ChatPage() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: '#0c0e17' }}>
+
+      {/* Memory saved toast */}
+      {memoryToast && (
+        <div style={{
+          position: 'fixed', bottom: '80px', left: '50%',
+          transform: 'translateX(-50%)',
+          background: '#1c2035', border: '1px solid rgba(56,189,248,0.30)',
+          borderRadius: '6px', padding: '8px 16px',
+          fontSize: '12px', color: '#38bdf8', fontWeight: '600',
+          letterSpacing: '0.05em', zIndex: 100,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+        }}>
+          ◈ Memory saved
+        </div>
+      )}
 
       {/* ── Sidebar ── */}
       {sidebarOpen && (
@@ -325,7 +345,6 @@ export default function ChatPage() {
       {/* ── Chat column ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
 
-        {/* Header */}
         <header style={{
           background: '#0f1220', borderBottom: '1px solid #2d3250',
           padding: '0 16px', height: '50px',
@@ -380,10 +399,7 @@ export default function ChatPage() {
               display: 'inline-block',
               transition: 'all 0.3s',
             }} />
-            <span style={{
-              fontSize: '10px', fontWeight: '600',
-              letterSpacing: '0.06em', color: '#4a5480',
-            }}>
+            <span style={{ fontSize: '10px', fontWeight: '600', letterSpacing: '0.06em', color: '#4a5480' }}>
               {label}
             </span>
           </div>
@@ -394,7 +410,6 @@ export default function ChatPage() {
           }}>OUT</button>
         </header>
 
-        {/* Messages */}
         <div style={{
           flex: 1, overflowY: 'auto', padding: '20px 0 12px',
           display: 'flex', flexDirection: 'column', gap: '2px',
@@ -434,42 +449,19 @@ export default function ChatPage() {
                             </code>
                           );
                         }
-                        return (
-                          <code style={codeStyle}>
-                            {String(children).replace(/\n$/, '')}
-                          </code>
-                        );
+                        return <code style={codeStyle}>{String(children).replace(/\n$/, '')}</code>;
                       },
-                      p({ children }) {
-                        return <p style={{ margin: '4px 0', lineHeight: '1.65' }}>{children}</p>;
-                      },
-                      ul({ children }) {
-                        return <ul style={{ paddingLeft: '20px', margin: '6px 0' }}>{children}</ul>;
-                      },
-                      ol({ children }) {
-                        return <ol style={{ paddingLeft: '20px', margin: '6px 0' }}>{children}</ol>;
-                      },
-                      li({ children }) {
-                        return <li style={{ margin: '2px 0' }}>{children}</li>;
-                      },
-                      strong({ children }) {
-                        return <strong style={{ color: '#eef0f8', fontWeight: '600' }}>{children}</strong>;
-                      },
-                      h1({ children }) {
-                        return <h1 style={{ color: '#eef0f8', fontSize: '18px', fontWeight: '700', margin: '12px 0 6px' }}>{children}</h1>;
-                      },
-                      h2({ children }) {
-                        return <h2 style={{ color: '#eef0f8', fontSize: '16px', fontWeight: '600', margin: '10px 0 4px' }}>{children}</h2>;
-                      },
-                      h3({ children }) {
-                        return <h3 style={{ color: '#eef0f8', fontSize: '14px', fontWeight: '600', margin: '8px 0 4px' }}>{children}</h3>;
-                      },
+                      p({ children }) { return <p style={{ margin: '4px 0', lineHeight: '1.65' }}>{children}</p>; },
+                      ul({ children }) { return <ul style={{ paddingLeft: '20px', margin: '6px 0' }}>{children}</ul>; },
+                      ol({ children }) { return <ol style={{ paddingLeft: '20px', margin: '6px 0' }}>{children}</ol>; },
+                      li({ children }) { return <li style={{ margin: '2px 0' }}>{children}</li>; },
+                      strong({ children }) { return <strong style={{ color: '#eef0f8', fontWeight: '600' }}>{children}</strong>; },
+                      h1({ children }) { return <h1 style={{ color: '#eef0f8', fontSize: '18px', fontWeight: '700', margin: '12px 0 6px' }}>{children}</h1>; },
+                      h2({ children }) { return <h2 style={{ color: '#eef0f8', fontSize: '16px', fontWeight: '600', margin: '10px 0 4px' }}>{children}</h2>; },
+                      h3({ children }) { return <h3 style={{ color: '#eef0f8', fontSize: '14px', fontWeight: '600', margin: '8px 0 4px' }}>{children}</h3>; },
                       blockquote({ children }) {
                         return (
-                          <blockquote style={{
-                            borderLeft: '3px solid #2d3250', paddingLeft: '12px',
-                            margin: '8px 0', color: '#8892b0', fontStyle: 'italic',
-                          }}>
+                          <blockquote style={{ borderLeft: '3px solid #2d3250', paddingLeft: '12px', margin: '8px 0', color: '#8892b0', fontStyle: 'italic' }}>
                             {children}
                           </blockquote>
                         );
@@ -477,35 +469,22 @@ export default function ChatPage() {
                       table({ children }) {
                         return (
                           <div style={{ overflowX: 'auto', margin: '8px 0' }}>
-                            <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '13px' }}>
-                              {children}
-                            </table>
+                            <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '13px' }}>{children}</table>
                           </div>
                         );
                       },
                       th({ children }) {
-                        return (
-                          <th style={{
-                            border: '1px solid #2d3250', padding: '6px 10px',
-                            background: '#1c2035', color: '#eef0f8', textAlign: 'left',
-                          }}>{children}</th>
-                        );
+                        return <th style={{ border: '1px solid #2d3250', padding: '6px 10px', background: '#1c2035', color: '#eef0f8', textAlign: 'left' }}>{children}</th>;
                       },
                       td({ children }) {
-                        return (
-                          <td style={{
-                            border: '1px solid #2d3250', padding: '6px 10px', color: '#c8cfe0',
-                          }}>{children}</td>
-                        );
+                        return <td style={{ border: '1px solid #2d3250', padding: '6px 10px', color: '#c8cfe0' }}>{children}</td>;
                       },
                     }}
                   >
                     {msg.content}
                   </ReactMarkdown>
                 ) : (
-                  <p style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                    {msg.content}
-                  </p>
+                  <p style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.content}</p>
                 )}
               </div>
             </div>
@@ -513,10 +492,9 @@ export default function ChatPage() {
 
           {loading && (
             <div style={{ padding: '8px 20px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <span style={{
-                fontSize: '10px', fontWeight: '700', letterSpacing: '0.09em',
-                textTransform: 'uppercase', color: '#cc1a1a',
-              }}>Cipher</span>
+              <span style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '0.09em', textTransform: 'uppercase', color: '#cc1a1a' }}>
+                Cipher
+              </span>
               <p style={{ fontSize: '14px', color: '#2d3250', marginTop: '4px' }}>▌</p>
             </div>
           )}
@@ -533,13 +511,9 @@ export default function ChatPage() {
           {filePreview && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', alignSelf: 'flex-start' }}>
               {file?.type.startsWith('image/') ? (
-                <img src={filePreview} alt="preview"
-                  style={{ height: '50px', borderRadius: '4px', border: '1px solid #2d3250' }} />
+                <img src={filePreview} alt="preview" style={{ height: '50px', borderRadius: '4px', border: '1px solid #2d3250' }} />
               ) : (
-                <span style={{
-                  background: '#1c2035', color: '#8892b0', border: '1px solid #2d3250',
-                  borderRadius: '4px', padding: '4px 10px', fontSize: '12px',
-                }}>
+                <span style={{ background: '#1c2035', color: '#8892b0', border: '1px solid #2d3250', borderRadius: '4px', padding: '4px 10px', fontSize: '12px' }}>
                   📄 {filePreview}
                 </span>
               )}
