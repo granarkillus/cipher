@@ -69,6 +69,7 @@ export default function ChatPage() {
   const [messages, setMessages]             = useState<Message[]>([]);
   const [input, setInput]                   = useState('');
   const [loading, setLoading]               = useState(false);
+  const [error, setError]                   = useState(false);
   const [model, setModel]                   = useState('claude-sonnet-4-6');
   const [models, setModels]                 = useState<ModelOption[]>([]);
   const [conversationId, setConversationId] = useState<string>('');
@@ -83,6 +84,15 @@ export default function ChatPage() {
   const inputRef                            = useRef<HTMLTextAreaElement>(null);
   const fileInputRef                        = useRef<HTMLInputElement>(null);
   const router                              = useRouter();
+
+  // Status indicator config
+  const status = error ? 'error' : loading ? 'thinking' : 'online';
+  const statusConfig = {
+    online:   { dot: '#22c55e', label: 'ONLINE' },
+    thinking: { dot: '#f59e0b', label: 'THINKING' },
+    error:    { dot: '#cc1a1a', label: 'ERROR' },
+  };
+  const { dot, label } = statusConfig[status];
 
   useEffect(() => {
     const stored = sessionStorage.getItem('cipher-conversation-id');
@@ -133,6 +143,7 @@ export default function ChatPage() {
   const loadConversation = useCallback((id: string) => {
     setMessages([]);
     setArtifact(null);
+    setError(false);
     setConversationId(id);
     sessionStorage.setItem('cipher-conversation-id', id);
   }, []);
@@ -146,6 +157,7 @@ export default function ChatPage() {
     setFile(null);
     setFilePreview(null);
     setArtifact(null);
+    setError(false);
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
@@ -171,6 +183,7 @@ export default function ChatPage() {
     if ((!text && !file) || loading || !conversationId) return;
 
     setInput('');
+    setError(false);
     setMessages(prev => [...prev, { role: 'user', content: text || `[${file?.name}]` }]);
     setLoading(true);
 
@@ -208,6 +221,8 @@ export default function ChatPage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Something went wrong';
       setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${msg}` }]);
+      setError(true);
+      setTimeout(() => setError(false), 5000);
     } finally {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 50);
@@ -310,6 +325,7 @@ export default function ChatPage() {
       {/* ── Chat column ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
 
+        {/* Header */}
         <header style={{
           background: '#0f1220', borderBottom: '1px solid #2d3250',
           padding: '0 16px', height: '50px',
@@ -349,12 +365,36 @@ export default function ChatPage() {
             })}
           </div>
 
+          {/* Status indicator */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '5px',
+            padding: '3px 8px',
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid #2d3250',
+            borderRadius: '4px',
+          }}>
+            <span style={{
+              width: '6px', height: '6px', borderRadius: '50%',
+              background: dot,
+              boxShadow: loading ? `0 0 6px ${dot}` : 'none',
+              display: 'inline-block',
+              transition: 'all 0.3s',
+            }} />
+            <span style={{
+              fontSize: '10px', fontWeight: '600',
+              letterSpacing: '0.06em', color: '#4a5480',
+            }}>
+              {label}
+            </span>
+          </div>
+
           <button onClick={handleSignOut} style={{
             background: 'transparent', color: '#4a5480', border: 'none',
             fontSize: '11px', padding: '3px 4px', letterSpacing: '0.04em', cursor: 'pointer',
           }}>OUT</button>
         </header>
 
+        {/* Messages */}
         <div style={{
           flex: 1, overflowY: 'auto', padding: '20px 0 12px',
           display: 'flex', flexDirection: 'column', gap: '2px',
