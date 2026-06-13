@@ -168,9 +168,10 @@ export default function ChatPage() {
       .then(r => r.json())
       .then(d => {
         if (d.messages) {
-          setMessages(d.messages.map((m: { role: 'user' | 'assistant'; content: string }) => ({
+          setMessages(d.messages.map((m: { role: 'user' | 'assistant'; content: string; created_at?: string }) => ({
             role: m.role,
             content: m.content,
+            created_at: m.created_at,
           })));
         }
       })
