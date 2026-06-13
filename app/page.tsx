@@ -8,6 +8,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   time?: string;
+  created_at?: string;
 }
 
 interface ModelOption {
