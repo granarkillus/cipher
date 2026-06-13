@@ -181,10 +181,12 @@ export default function ChatPage() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: '#0c0e17' }}>
+
+      {/* ── Sidebar ── */}
       {sidebarOpen && (
         <div style={{
-          width: '220
-       background: '#0f1220',
+          width: '220px',
+          background: '#0f1220',
           borderRight: '1px solid #2d3250',
           display: 'flex',
           flexDirection: 'column',
@@ -275,7 +277,10 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* ── Main area ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+
+        {/* Header */}
         <header style={{
           background: '#0f1220',
           borderBottom: '1px solid #2d3250',
@@ -297,7 +302,6 @@ export default function ChatPage() {
               cursor: 'pointer',
               lineHeight: 1,
             }}
-            title="Toggle sidebar"
           >
             ☰
           </button>
@@ -360,6 +364,7 @@ export default function ChatPage() {
           </button>
         </header>
 
+        {/* Messages */}
         <div style={{
           flex: 1,
           overflowY: 'auto',
@@ -384,10 +389,45 @@ export default function ChatPage() {
 
           {messages.map((msg, i) => (
             <div key={i} style={{
+              padding:       '8px 24px',
+              maxWidth:      '740px',
+              width:         '100%',
+              margin:        '0 auto',
+              display:       'flex',
+              flexDirection: 'column',
+              gap:           '4px',
+            }}>
+              <span style={{
+                fontSize:      '10px',
+                fontWeight:    '700',
+                letterSpacing: '0.09em',
+                textTransform: 'uppercase',
+                color: msg.role === 'user' ? '#38bdf8' : '#cc1a1a',
+              }}>
+                {msg.role === 'user' ? 'You' : 'Cipher'}
+              </span>
+              <p style={{
+                fontSize:   '14px',
+                lineHeight: '1.65',
+                color:      msg.role === 'user' ? '#dce8f5' : '#c8cfe0',
+                whiteSpace: 'pre-wrap',
+                wordBreak:  'break-word',
+                margin:     0,
+              }}>
+                {msg.content}
+              </p>
+            </div>
+          ))}
+
+          {loading && (
+            <div style={{
               padding: '8px 24px',
               maxWidth: '740px',
               width: '100%',
               margin: '0 auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
             }}>
               <span style={{
                 fontSize:      '10px',
@@ -407,13 +447,13 @@ export default function ChatPage() {
 
         {/* Input bar */}
         <div style={{
-          background: '#0f1220',
-          borderTop: '1px solid #2d3250',
-          padding: '10px 16px',
-          display: 'flex',
+          background:  '#0f1220',
+          borderTop:   '1px solid #2d3250',
+          padding:     '10px 16px',
+          display:     'flex',
           flexDirection: 'column',
-          gap: '6px',
-          flexShrink: 0,
+          gap:         '6px',
+          flexShrink:  0,
         }}>
           {imagePreview && (
             <div style={{ position: 'relative', display: 'inline-block', alignSelf: 'flex-start' }}>
@@ -430,7 +470,9 @@ export default function ChatPage() {
                   borderRadius: '50%', width: '16px', height: '16px',
                   fontSize: '10px', cursor: 'pointer', lineHeight: 1,
                 }}
-              >×</button>
+              >
+                ×
+              </button>
             </div>
           )}
 
@@ -446,19 +488,20 @@ export default function ChatPage() {
               onClick={() => fileInputRef.current?.click()}
               title="Attach image"
               style={{
-                background: 'transparent',
-                color: '#4a5480',
-                border: '1px solid #2d3250',
+                background:   'transparent',
+                color:        '#4a5480',
+                border:       '1px solid #2d3250',
                 borderRadius: '6px',
-                padding: '9px 10px',
-                fontSize: '14px',
-                height: '40px',
-                cursor: 'pointer',
-                lineHeight: 1,
+                padding:      '9px 10px',
+                fontSize:     '14px',
+                height:       '40px',
+                cursor:       'pointer',
+                lineHeight:   1,
               }}
             >
               🖼
             </button>
+
             <textarea
               ref={inputRef}
               value={input}
@@ -486,6 +529,7 @@ export default function ChatPage() {
                 el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
               }}
             />
+
             <button
               onClick={sendMessage}
               disabled={loading || (!input.trim() && !imageFile)}
