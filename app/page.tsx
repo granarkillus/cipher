@@ -371,26 +371,53 @@ export default function ChatPage() {
                 No history yet
               </p>
             ) : conversations.map(conv => (
-              <button key={conv.conversation_id} onClick={() => loadConversation(conv.conversation_id)} style={{
-                width: '100%',
-                background: conv.conversation_id === conversationId ? 'rgba(56,189,248,0.08)' : 'transparent',
-                border: 'none',
-                borderLeft: conv.conversation_id === conversationId ? '2px solid #38bdf8' : '2px solid transparent',
-                padding: '8px 12px', textAlign: 'left', cursor: 'pointer',
-                display: 'flex', flexDirection: 'column', gap: '2px',
-              }}>
-                <span style={{
-                  fontSize: '12px',
-                  color: conv.conversation_id === conversationId ? '#eef0f8' : '#8892b0',
-                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                  display: 'block', maxWidth: '170px',
-                }}>
-                  {conv.preview?.slice(0, 40) || 'Conversation'}
-                </span>
+              <div
+                key={conv.conversation_id}
+                onDoubleClick={() => {
+                  setRenamingId(conv.conversation_id);
+                  setRenameValue(titles[conv.conversation_id] || conv.preview?.slice(0, 40) || 'Conversation');
+                }}
+                onClick={() => { if (renamingId !== conv.conversation_id) loadConversation(conv.conversation_id); }}
+                style={{
+                  width: '100%',
+                  background: conv.conversation_id === conversationId ? 'rgba(56,189,248,0.08)' : 'transparent',
+                  borderLeft: conv.conversation_id === conversationId ? '2px solid #38bdf8' : '2px solid transparent',
+                  padding: '8px 12px', textAlign: 'left', cursor: 'pointer',
+                  display: 'flex', flexDirection: 'column', gap: '2px',
+                  boxSizing: 'border-box',
+                }}
+              >
+                {renamingId === conv.conversation_id ? (
+                  <input
+                    autoFocus
+                    value={renameValue}
+                    onChange={e => setRenameValue(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') saveTitle(conv.conversation_id, renameValue);
+                      if (e.key === 'Escape') setRenamingId(null);
+                    }}
+                    onBlur={() => saveTitle(conv.conversation_id, renameValue)}
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                      background: '#1c2035', border: '1px solid #38bdf8', borderRadius: '3px',
+                      color: '#eef0f8', fontSize: '12px', padding: '2px 6px',
+                      outline: 'none', width: '100%', boxSizing: 'border-box',
+                    }}
+                  />
+                ) : (
+                  <span style={{
+                    fontSize: '12px',
+                    color: conv.conversation_id === conversationId ? '#eef0f8' : '#8892b0',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    display: 'block', maxWidth: '170px',
+                  }}>
+                    {titles[conv.conversation_id] || conv.preview?.slice(0, 40) || 'Conversation'}
+                  </span>
+                )}
                 <span style={{ fontSize: '10px', color: '#4a5480' }}>
                   {formatDate(conv.last_active)} · {conv.message_count}
                 </span>
-              </button>
+              </div>
             ))}
           </div>
         </div>
