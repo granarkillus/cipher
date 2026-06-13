@@ -1,8 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { getBrowserClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 
@@ -26,7 +24,6 @@ interface Conversation {
 interface Artifact {
   language: string;
   code: string;
-  filename?: string;
 }
 
 function formatDate(dateStr: string): string {
@@ -39,13 +36,12 @@ function formatDate(dateStr: string): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-// Extract first code block from a message as an artifact
 function extractArtifact(content: string): Artifact | null {
   const match = content.match(/```(\w+)?\n([\s\S]*?)```/);
   if (!match) return null;
   const language = match[1] || 'text';
   const code = match[2].trim();
-  if (code.length < 50) return null; // ignore tiny inline snippets
+  if (code.length < 50) return null;
   return { language, code };
 }
 
@@ -201,7 +197,6 @@ export default function ChatPage() {
       const reply = data.reply as string;
       setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
 
-      // Auto-detect artifact
       const detected = extractArtifact(reply);
       if (detected) {
         setArtifact(detected);
@@ -242,25 +237,34 @@ export default function ChatPage() {
 
   const pillLabel = (label: string) => label.split(' ')[0].toUpperCase();
 
+  const codeStyle = {
+    background: '#1c2035',
+    border: '1px solid #2d3250',
+    borderRadius: '6px',
+    padding: '12px 14px',
+    overflowX: 'auto' as const,
+    fontSize: '13px',
+    lineHeight: '1.6',
+    margin: '8px 0',
+    fontFamily: 'monospace',
+    color: '#c8cfe0',
+    display: 'block',
+    whiteSpace: 'pre' as const,
+  };
+
   return (
     <div style={{ display: 'flex', height: '100vh', background: '#0c0e17' }}>
 
       {/* ── Sidebar ── */}
       {sidebarOpen && (
         <div style={{
-          width: '200px',
-          background: '#0f1220',
+          width: '200px', background: '#0f1220',
           borderRight: '1px solid #2d3250',
-          display: 'flex',
-          flexDirection: 'column',
-          flexShrink: 0,
+          display: 'flex', flexDirection: 'column', flexShrink: 0,
         }}>
           <div style={{
-            padding: '14px 12px',
-            borderBottom: '1px solid #2d3250',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
+            padding: '14px 12px', borderBottom: '1px solid #2d3250',
+            display: 'flex', alignItems: 'center', gap: '8px',
           }}>
             <span style={{ color: '#cc1a1a', fontSize: '13px', fontWeight: '700', letterSpacing: '0.08em', flex: 1 }}>
               ◈ CIPHER
@@ -306,7 +310,6 @@ export default function ChatPage() {
       {/* ── Chat column ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
 
-        {/* Header */}
         <header style={{
           background: '#0f1220', borderBottom: '1px solid #2d3250',
           padding: '0 16px', height: '50px',
@@ -352,7 +355,6 @@ export default function ChatPage() {
           }}>OUT</button>
         </header>
 
-        {/* Messages */}
         <div style={{
           flex: 1, overflowY: 'auto', padding: '20px 0 12px',
           display: 'flex', flexDirection: 'column', gap: '2px',
@@ -366,7 +368,7 @@ export default function ChatPage() {
 
           {messages.map((msg, i) => (
             <div key={i} style={{
-              padding: '8px 20px', maxWidth: '100%', width: '100%',
+              padding: '8px 20px', width: '100%',
               display: 'flex', flexDirection: 'column', gap: '4px',
             }}>
               <span style={{
@@ -376,35 +378,26 @@ export default function ChatPage() {
               }}>
                 {msg.role === 'user' ? 'You' : 'Cipher'}
               </span>
-              <div style={{
-                fontSize: '14px', lineHeight: '1.65',
-                color: msg.role === 'user' ? '#dce8f5' : '#c8cfe0',
-              }}>
+              <div style={{ fontSize: '14px', lineHeight: '1.65', color: msg.role === 'user' ? '#dce8f5' : '#c8cfe0' }}>
                 {msg.role === 'assistant' ? (
                   <ReactMarkdown
                     components={{
                       code({ className, children, ...props }) {
                         const match = /language-(\w+)/.exec(className || '');
-                        const isInline = !match;
-                        return isInline ? (
-                          <code style={{
-                            background: '#1c2035', color: '#38bdf8',
-                            padding: '1px 6px', borderRadius: '3px', fontSize: '13px',
-                          }} {...props}>
-                            {children}
-                          </code>
-                        ) : (
-                          <SyntaxHighlighter
-                            style={oneDark}
-                            language={match[1]}
-                            PreTag="div"
-                            customStyle={{
-                              borderRadius: '6px', fontSize: '13px',
-                              margin: '8px 0', border: '1px solid #2d3250',
-                            }}
-                          >
+                        if (!match) {
+                          return (
+                            <code style={{
+                              background: '#1c2035', color: '#38bdf8',
+                              padding: '1px 6px', borderRadius: '3px', fontSize: '13px',
+                            }} {...props}>
+                              {children}
+                            </code>
+                          );
+                        }
+                        return (
+                          <code style={codeStyle}>
                             {String(children).replace(/\n$/, '')}
-                          </SyntaxHighlighter>
+                          </code>
                         );
                       },
                       p({ children }) {
@@ -444,9 +437,7 @@ export default function ChatPage() {
                       table({ children }) {
                         return (
                           <div style={{ overflowX: 'auto', margin: '8px 0' }}>
-                            <table style={{
-                              borderCollapse: 'collapse', width: '100%', fontSize: '13px',
-                            }}>
+                            <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '13px' }}>
                               {children}
                             </table>
                           </div>
@@ -457,18 +448,14 @@ export default function ChatPage() {
                           <th style={{
                             border: '1px solid #2d3250', padding: '6px 10px',
                             background: '#1c2035', color: '#eef0f8', textAlign: 'left',
-                          }}>
-                            {children}
-                          </th>
+                          }}>{children}</th>
                         );
                       },
                       td({ children }) {
                         return (
                           <td style={{
                             border: '1px solid #2d3250', padding: '6px 10px', color: '#c8cfe0',
-                          }}>
-                            {children}
-                          </td>
+                          }}>{children}</td>
                         );
                       },
                     }}
@@ -579,14 +566,10 @@ export default function ChatPage() {
       {/* ── Artifact panel ── */}
       {artifact && (
         <div style={{
-          width: '420px',
-          background: '#0f1220',
+          width: '420px', background: '#0f1220',
           borderLeft: '1px solid #2d3250',
-          display: 'flex',
-          flexDirection: 'column',
-          flexShrink: 0,
+          display: 'flex', flexDirection: 'column', flexShrink: 0,
         }}>
-          {/* Artifact header */}
           <div style={{
             padding: '0 16px', height: '50px', borderBottom: '1px solid #2d3250',
             display: 'flex', alignItems: 'center', gap: '8px',
@@ -628,20 +611,14 @@ export default function ChatPage() {
             }}>×</button>
           </div>
 
-          {/* Artifact code */}
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            <SyntaxHighlighter
-              style={oneDark}
-              language={artifact.language}
-              PreTag="div"
-              showLineNumbers
-              customStyle={{
-                margin: 0, borderRadius: 0, minHeight: '100%',
-                fontSize: '12px', background: '#0c0e17',
-              }}
-            >
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+            <pre style={{
+              margin: 0, fontSize: '12px', lineHeight: '1.6',
+              color: '#c8cfe0', fontFamily: 'monospace',
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+            }}>
               {artifact.code}
-            </SyntaxHighlighter>
+            </pre>
           </div>
         </div>
       )}
