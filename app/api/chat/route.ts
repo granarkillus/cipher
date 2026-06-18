@@ -98,6 +98,18 @@ const TOOLS: Anthropic.Tool[] = [
       required: [],
     },
   },
+  {
+    name: 'extract_pdf',
+    description: 'Extract text from a PDF file. Use when you have a PDF and need to read or analyze its contents.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        fileBuffer: { type: 'string', description: 'Base64-encoded PDF file buffer.' },
+        fileName: { type: 'string', description: 'Name of the PDF file (optional, for reference).' },
+      },
+      required: ['fileBuffer'],
+    },
+  },
 ];
 
 // ── Tool execution ────────────────────────────────────────────────────────────
@@ -280,6 +292,27 @@ async function execCheckVercelDeployment(): Promise<string> {
   } catch (e) { return `Error: ${e}`; }
 }
 
+async function execExtractPdf(input: { fileBuffer: string; fileName?: string }): Promise<string> {
+  try {
+    const res = await fetch('http://localhost:3000/api/extract-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) return `Error: ${res.status} ${await res.text()}`;
+    const result = await res.json();
+    if (!result.success) return `PDF extraction failed: ${result.error}`;
+    return JSON.stringify({
+      fileName: result.fileName,
+      pages: result.pages,
+      text: result.text.slice(0, 50000),
+      metadata: result.metadata,
+    });
+  } catch (e) {
+    return `PDF extraction error: ${e}`;
+  }
+}
+
 async function executeTool(
   name: string,
   input: Record<string, unknown>,
@@ -299,6 +332,8 @@ async function executeTool(
       return { result: await execPatchGithubFile(input as { path: string; search: string; replacement: string; commit_message: string }) };
     case 'check_vercel_deployment':
       return { result: await execCheckVercelDeployment() };
+    case 'extract_pdf':
+      return { result: await execExtractPdf(input as { fileBuffer: string; fileName?: string }) };
     default:
       return { result: `Unknown tool: ${name}` };
   }
@@ -390,6 +425,7 @@ ${memSection}${ctxSection}TOOLS:
 - write_github_file: commit a file directly to GitHub (triggers Vercel deploy) — always read first, always write complete file, always call check_vercel_deployment after
 - patch_github_file: surgical edit tool — find exact search string, replace with replacement, commit
 - check_vercel_deployment: check deploy status — always call after write_github_file, report SHA + state together
+- extract_pdf: extract text from PDF files for analysis
 
 RULES:
 - Never report a tool action complete without verified result
