@@ -145,17 +145,18 @@ export default function MemoryWorld() {
 
       // Zone rings
       for (const zone of Object.values(ZONES)) {
+        const zoneR = zone.r * Math.min(w, h);
         ctx.beginPath();
-        ctx.arc(zone.cx * w, zone.cy * h, zone.r * w * 0.9, 0, Math.PI * 2);
-        ctx.strokeStyle = zone.color + '22';
+        ctx.arc(zone.cx * w, zone.cy * h, zoneR * 0.9, 0, Math.PI * 2);
+        ctx.strokeStyle = zone.color + '33';
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        ctx.font = '9px monospace';
-        ctx.fillStyle = zone.color + '66';
+        ctx.font = 'bold 11px monospace';
+        ctx.fillStyle = zone.color + 'cc';
         ctx.letterSpacing = '0.08em';
         ctx.textAlign = 'center';
-        ctx.fillText(zone.label, zone.cx * w, (zone.cy - zone.r * 0.92) * h);
+        ctx.fillText(zone.label, zone.cx * w, zone.cy * h - zoneR * 0.92);
       }
 
       const ns = nodesRef.current;
