@@ -410,7 +410,7 @@ export default function ChatPage() {
                 ) : (
                   <span style={{
                     fontSize: '12px',
-                    color: conv.conversation_id === conversationId ? '#eef0f8' : '#8892b0',
+                    color: conv.conversation_id === conversationId ? '#eef0f8' : '#aab0c8',
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                     display: 'block', maxWidth: '170px',
                   }}>
