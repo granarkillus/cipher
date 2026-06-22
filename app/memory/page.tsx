@@ -152,8 +152,8 @@ export default function MemoryWorld() {
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        ctx.font = 'bold 11px monospace';
-        ctx.fillStyle = zone.color + 'cc';
+        ctx.font = 'bold 12px monospace';
+        ctx.fillStyle = zone.color + 'ff';
         ctx.letterSpacing = '0.08em';
         ctx.textAlign = 'center';
         ctx.fillText(zone.label, zone.cx * w, zone.cy * h - zoneR * 0.92);
