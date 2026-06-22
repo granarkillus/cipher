@@ -169,7 +169,7 @@ export default function MemoryWorld() {
         const zone = ZONES[n.category];
         const zx   = zone.cx * w;
         const zy   = zone.cy * h;
-        const zr   = zone.r * Math.min(w, h) * 0.85; // usable radius in px
+        const zr   = zone.r * Math.min(w, h) * 0.82; // usable radius in px
 
         // Weak gravity toward zone center
         const dxC = zx - n.x;
