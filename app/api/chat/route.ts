@@ -442,16 +442,26 @@ Be direct. Match the register. Don't pad.`;
     type ContentBlock  = TextBlock | ImageBlock | DocumentBlock;
 
     const userContent: ContentBlock[] = [];
-    if (imageData && imageMediaType)
+    if (imageData && imageMediaType) {
+      // Image file — use image block
       userContent.push({ type: 'image', source: { type: 'base64', media_type: imageMediaType, data: imageData } });
-    else if (imageData && fileText === '__PDF__')
+    } else if (imageData && fileText === '__PDF__') {
+      // PDF file — use document block with base64 source
       userContent.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: imageData } });
-    if (fileText && fileText !== '__PDF__')
+    }
+    if (fileText && fileText !== '__PDF__') {
+      // Plain text / code file — embed as fenced code block
       userContent.push({ type: 'text', text: `File: ${fileName}\n\`\`\`${fileName?.split('.').pop() || 'text'}\n${fileText}\n\`\`\`` });
-    if (message.trim())
+    }
+    if (message.trim()) {
       userContent.push({ type: 'text', text: message });
-    else if (!fileText && imageData)
+    } else if (imageData && imageMediaType) {
+      // Image with no message — ask Claude to describe it
       userContent.push({ type: 'text', text: 'What do you see in this image?' });
+    } else if (imageData && fileText === '__PDF__') {
+      // PDF with no message — ask Claude to read it
+      userContent.push({ type: 'text', text: 'Please read and summarize this document.' });
+    }
 
     const claudeMessages: Anthropic.MessageParam[] = [
       ...recentHistory.map((m: { role: string; content: string }) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
