@@ -492,6 +492,13 @@ export default function ChatPage() {
             background: 'transparent', color: '#4a5480', border: 'none',
             fontSize: '11px', padding: '3px 4px', letterSpacing: '0.04em', cursor: 'pointer',
           }}>OUT</button>
+
+          <a href="https://cipher.xing.wtf/memory" target="_blank" rel="noopener noreferrer" title="Memory World" style={{
+            background: 'transparent', color: '#4a5480', border: '1px solid #2d3250',
+            borderRadius: '4px', padding: '3px 7px', fontSize: '13px',
+            lineHeight: 1, cursor: 'pointer', textDecoration: 'none',
+            display: 'inline-flex', alignItems: 'center',
+          }}>⬡</a>
         </header>
 
         <div style={{
