@@ -451,7 +451,7 @@ export default function ChatPage() {
               { id: 'claude-sonnet-4-6',         label: 'Sonnet 4.6' },
               { id: 'claude-opus-4-8',           label: 'Opus 4.8' },
               { id: 'claude-fable-5',            label: 'Fable 5' },
-            ]).map(m => {
+            ]).filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i).map(m => {
               const active = m.id === model;
               return (
                 <button key={m.id} onClick={() => setModel(m.id)} style={{
