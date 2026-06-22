@@ -456,8 +456,8 @@ export default function ChatPage() {
               return (
                 <button key={m.id} onClick={() => setModel(m.id)} style={{
                   background:    active ? 'rgba(56,189,248,0.12)' : 'transparent',
-                  color:         active ? '#38bdf8' : '#4a5480',
-                  border:        active ? '1px solid rgba(56,189,248,0.30)' : '1px solid #2d3250',
+                  color:         active ? '#38bdf8' : '#8892b0',
+                  border:        active ? '1px solid rgba(56,189,248,0.30)' : '1px solid #3d4466',
                   borderRadius:  '4px', padding: '3px 8px', fontSize: '11px',
                   fontWeight:    active ? '600' : '500', letterSpacing: '0.05em',
                   transition:    'all 0.15s', cursor: 'pointer',
