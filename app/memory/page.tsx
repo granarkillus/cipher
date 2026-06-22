@@ -266,13 +266,13 @@ export default function MemoryWorld() {
         ctx.fill();
         ctx.stroke();
 
-        // Label on hover
+        // Label on hover — positioned ABOVE node to avoid circle overlap
         if (isHov || isSel) {
-          const maxW  = 220;
+          const maxW  = 240;
           const words = n.fact.split(' ');
           const lines: string[] = [];
           let line = '';
-          ctx.font = '11px monospace';
+          ctx.font = 'bold 12px monospace';
           for (const word of words) {
             const test = line ? `${line} ${word}` : word;
             if (ctx.measureText(test).width > maxW) {
@@ -283,28 +283,30 @@ export default function MemoryWorld() {
             }
           }
           if (line) lines.push(line);
-          const lh   = 14;
-          const pad  = 8;
+          const lh   = 16;
+          const pad  = 10;
           const bw   = maxW + pad * 2;
           const bh   = lines.length * lh + pad * 2;
-          let bx     = n.x + r + 8;
-          let by     = n.y - bh / 2;
-          if (bx + bw > w - 10) bx = n.x - r - 8 - bw;
-          if (by < 10) by = 10;
-          if (by + bh > h - 10) by = h - bh - 10;
+          // Position ABOVE node, centered horizontally
+          let bx     = n.x - bw / 2;
+          let by     = n.y - r - 12 - bh; // 12px gap above node
+          // Keep in canvas bounds
+          if (bx < 10) bx = 10;
+          if (bx + bw > w - 10) bx = w - bw - 10;
+          if (by < 56) by = n.y - r + 12; // if too high, move below
 
-          ctx.fillStyle   = 'rgba(12,14,23,0.92)';
-          ctx.strokeStyle = zone.color + '66';
-          ctx.lineWidth   = 1;
+          ctx.fillStyle   = 'rgba(12,14,23,0.96)';
+          ctx.strokeStyle = zone.color + '88';
+          ctx.lineWidth   = 1.5;
           ctx.beginPath();
-          ctx.roundRect(bx, by, bw, bh, 4);
+          ctx.roundRect(bx, by, bw, bh, 6);
           ctx.fill();
           ctx.stroke();
 
-          ctx.fillStyle = '#c8cfe0';
-          ctx.font      = '11px monospace';
+          ctx.fillStyle = '#f0f4f9';
+          ctx.font      = 'bold 12px monospace';
           ctx.textAlign = 'left';
-          lines.forEach((l, idx) => ctx.fillText(l, bx + pad, by + pad + (idx + 1) * lh - 2));
+          lines.forEach((l, idx) => ctx.fillText(l, bx + pad, by + pad + (idx + 1) * lh - 3));
         }
       }
 
