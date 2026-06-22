@@ -468,14 +468,8 @@ Be direct. Match the register. Don't pad.`;
       { role: 'user', content: userContent as Anthropic.ContentBlockParam[] },
     ];
 
-    // Force capable model for file uploads (PDF/image document API requires sonnet or better)
-    if (imageData || (fileText && fileText !== '__PDF__' && fileName)) {
-      model = 'claude-sonnet-4-6';
-    } else if (imageData && fileText === '__PDF__') {
-      model = 'claude-sonnet-4-6';
-    }
-    // Simplified: upgrade model whenever any file data is present
-    if (imageData) model = 'claude-sonnet-4-6';
+    // Upgrade model for any file upload — PDF/image document API requires sonnet or better
+    if (imageData || fileText) model = 'claude-sonnet-4-6';
 
     // Agentic tool loop
     let currentMessages = [...claudeMessages];
