@@ -162,18 +162,53 @@ export default function MemoryWorld() {
       const hov = hoveredRef.current;
       const sel = selectedRef.current;
 
-      // Soft physics — drift toward zone center
-      for (const n of ns) {
+      // Physics: repulsion + weak zone gravity + zone boundary clamping
+      for (let i = 0; i < ns.length; i++) {
+        const n    = ns[i];
         const zone = ZONES[n.category];
-        const tx = zone.cx * w;
-        const ty = zone.cy * h;
-        n.vx += (tx - n.x) * 0.0004;
-        n.vy += (ty - n.y) * 0.0004;
-        n.vx *= 0.97;
-        n.vy *= 0.97;
+        const zx   = zone.cx * w;
+        const zy   = zone.cy * h;
+        const zr   = zone.r * Math.min(w, h) * 0.85; // usable radius in px
+
+        // Weak gravity toward zone center
+        const dxC = zx - n.x;
+        const dyC = zy - n.y;
+        n.vx += dxC * 0.00015;
+        n.vy += dyC * 0.00015;
+
+        // Repulsion from every other node
+        for (let j = i + 1; j < ns.length; j++) {
+          const o  = ns[j];
+          const dx = n.x - o.x;
+          const dy = n.y - o.y;
+          const d2 = dx * dx + dy * dy || 1;
+          const d  = Math.sqrt(d2);
+          const minD = 14; // minimum separation in px
+          if (d < minD * 4) {
+            const force = (minD * 4 - d) / (minD * 4) * 0.4;
+            const fx = (dx / d) * force;
+            const fy = (dy / d) * force;
+            n.vx += fx; n.vy += fy;
+            o.vx -= fx; o.vy -= fy;
+          }
+        }
+
+        // Clamp inside zone ring
+        const dxZ = n.x - zx;
+        const dyZ = n.y - zy;
+        const distZ = Math.sqrt(dxZ * dxZ + dyZ * dyZ);
+        if (distZ > zr) {
+          n.x = zx + (dxZ / distZ) * zr;
+          n.y = zy + (dyZ / distZ) * zr;
+          n.vx *= 0.3;
+          n.vy *= 0.3;
+        }
+
+        n.vx *= 0.92;
+        n.vy *= 0.92;
         n.x  += n.vx;
         n.y  += n.vy;
-        // Clamp to canvas
+        // Hard canvas clamp
         n.x = Math.max(10, Math.min(w - 10, n.x));
         n.y = Math.max(10, Math.min(h - 10, n.y));
       }
