@@ -417,7 +417,7 @@ export default function ChatPage() {
                     {titles[conv.conversation_id] || conv.preview?.slice(0, 40) || 'Conversation'}
                   </span>
                 )}
-                <span style={{ fontSize: '10px', color: '#4a5480' }}>
+                <span style={{ fontSize: '10px', color: '#6b7299' }}>
                   {formatDate(conv.last_active)} · {conv.message_count}
                 </span>
               </div>
