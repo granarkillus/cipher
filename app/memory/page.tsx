@@ -1,12 +1,11 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 interface Memory {
   id: number;
   fact: string;
   importance: number;
-  category: string;
-  created_at: string;
+  category?: string;
 }
 
 interface Node {
@@ -18,24 +17,35 @@ interface Node {
   y: number;
 }
 
+interface TooltipState {
+  visible: boolean;
+  fact: string;
+  regionName: string;
+  regionCol: string;
+  imp: number;
+  top: number;
+  left?: number;
+  right?: number;
+}
+
 const REGIONS: Record<string, { name: string; col: string; glow: string; cx: number; cy: number }> = {
-  legal:        { name: 'The Courts',   col: '#e24b4a', glow: 'rgba(226,75,74,',    cx: 270, cy: 130 },
-  heart:        { name: 'The Heart',    col: '#e070a0', glow: 'rgba(220,110,160,',  cx: 165, cy: 310 },
-  relationship: { name: 'The Heart',    col: '#e070a0', glow: 'rgba(220,110,160,',  cx: 165, cy: 310 },
-  family:       { name: 'The Nest',     col: '#22c55e', glow: 'rgba(34,197,94,',    cx: 285, cy: 228 },
-  project:      { name: 'The Workshop', col: '#f59e0b', glow: 'rgba(245,158,11,',   cx: 132, cy: 190 },
-  work:         { name: 'The Shift',    col: '#a78bfa', glow: 'rgba(167,139,250,',  cx: 448, cy: 208 },
-  self:         { name: 'The Self',     col: '#38bdf8', glow: 'rgba(56,189,248,',   cx: 378, cy: 152 },
-  preference:   { name: 'The Self',     col: '#38bdf8', glow: 'rgba(56,189,248,',   cx: 378, cy: 152 },
-  biographical: { name: 'The Self',     col: '#38bdf8', glow: 'rgba(56,189,248,',   cx: 378, cy: 152 },
-  health:       { name: 'The Self',     col: '#38bdf8', glow: 'rgba(56,189,248,',   cx: 378, cy: 152 },
-  financial:    { name: 'The Workshop', col: '#f59e0b', glow: 'rgba(245,158,11,',   cx: 132, cy: 190 },
+  legal:        { name: 'The Courts',   col: '#e24b4a', glow: 'rgba(226,75,74,',   cx: 270, cy: 130 },
+  heart:        { name: 'The Heart',    col: '#e070a0', glow: 'rgba(220,110,160,', cx: 165, cy: 310 },
+  relationship: { name: 'The Heart',    col: '#e070a0', glow: 'rgba(220,110,160,', cx: 165, cy: 310 },
+  family:       { name: 'The Nest',     col: '#22c55e', glow: 'rgba(34,197,94,',   cx: 285, cy: 228 },
+  project:      { name: 'The Workshop', col: '#f59e0b', glow: 'rgba(245,158,11,',  cx: 132, cy: 190 },
+  work:         { name: 'The Shift',    col: '#a78bfa', glow: 'rgba(167,139,250,', cx: 448, cy: 208 },
+  self:         { name: 'The Self',     col: '#38bdf8', glow: 'rgba(56,189,248,',  cx: 378, cy: 152 },
+  preference:   { name: 'The Self',     col: '#38bdf8', glow: 'rgba(56,189,248,',  cx: 378, cy: 152 },
+  biographical: { name: 'The Self',     col: '#38bdf8', glow: 'rgba(56,189,248,',  cx: 378, cy: 152 },
+  health:       { name: 'The Self',     col: '#38bdf8', glow: 'rgba(56,189,248,',  cx: 378, cy: 152 },
+  financial:    { name: 'The Workshop', col: '#f59e0b', glow: 'rgba(245,158,11,',  cx: 132, cy: 190 },
 };
 
 const DEFAULT_REGION = { name: 'The Self', col: '#38bdf8', glow: 'rgba(56,189,248,', cx: 378, cy: 152 };
 
-function getRegion(category: string) {
-  return REGIONS[category?.toLowerCase()] ?? DEFAULT_REGION;
+function getRegion(category?: string) {
+  return REGIONS[(category ?? '').toLowerCase()] ?? DEFAULT_REGION;
 }
 
 function positionNode(memory: Memory, index: number): Node {
@@ -45,8 +55,8 @@ function positionNode(memory: Memory, index: number): Node {
   return {
     id: memory.id,
     fact: memory.fact,
-    imp: Math.min(5, Math.max(1, memory.importance)),
-    region: memory.category?.toLowerCase() ?? 'self',
+    imp: Math.min(5, Math.max(1, memory.importance ?? 1)),
+    region: (memory.category ?? 'self').toLowerCase(),
     x: Math.round(reg.cx + Math.cos(angle) * dist),
     y: Math.round(reg.cy + Math.sin(angle) * dist),
   };
@@ -54,16 +64,30 @@ function positionNode(memory: Memory, index: number): Node {
 
 function nr(imp: number) { return 5 + imp * 3.6; }
 
+const LEGEND_REGIONS = [
+  { key: 'legal',   name: 'The Courts',   col: '#e24b4a' },
+  { key: 'heart',   name: 'The Heart',    col: '#e070a0' },
+  { key: 'family',  name: 'The Nest',     col: '#22c55e' },
+  { key: 'project', name: 'The Workshop', col: '#f59e0b' },
+  { key: 'work',    name: 'The Shift',    col: '#a78bfa' },
+  { key: 'self',    name: 'The Self',     col: '#38bdf8' },
+];
+
 export default function MemoryBrain() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [nodes, setNodes] = useState<Node[]>([]);
   const [loading, setLoading] = useState(true);
   const [count, setCount] = useState(0);
+  const [regionLabel, setRegionLabel] = useState('hover a memory');
+  const [regionLabelCol, setRegionLabelCol] = useState('#3a4060');
+  const [tooltip, setTooltip] = useState<TooltipState>({
+    visible: false, fact: '', regionName: '', regionCol: '#38bdf8', imp: 1, top: 0,
+  });
   const hovRef = useRef<Node | null>(null);
   const tickRef = useRef(0);
   const pulsesRef = useRef<Array<{ a: Node; b: Node; t: number }>>([]);
-  const tooltipRef = useRef<HTMLDivElement>(null);
-  const rlabelRef = useRef<HTMLSpanElement>(null);
+  const edgesRef = useRef<[number, number][]>([]);
+  const nodesRef = useRef<Node[]>([]);
 
   useEffect(() => {
     fetch('/api/memories')
@@ -73,9 +97,43 @@ export default function MemoryBrain() {
         setCount(memories.length);
         const positioned = memories.map((m, i) => positionNode(m, i));
         setNodes(positioned);
+        nodesRef.current = positioned;
+
+        const edges: [number, number][] = [];
+        positioned.forEach((a, i) => {
+          positioned.slice(i + 1).forEach(b => {
+            if (a.region === b.region) {
+              const d = Math.hypot(a.x - b.x, a.y - b.y);
+              if (d < 75) edges.push([a.id, b.id]);
+            }
+          });
+        });
+        edgesRef.current = edges;
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  }, []);
+
+  const showTooltip = useCallback((n: Node, cw: number, ch: number) => {
+    const reg = getRegion(n.region);
+    const nx = cw * (n.x / 680);
+    const ny = 44 + ch * (n.y / 440);
+    const r = nr(n.imp);
+    const top = Math.max(50, Math.min(ny - 65, ch - 120));
+
+    if (n.x < 340) {
+      setTooltip({ visible: true, fact: n.fact, regionName: reg.name, regionCol: reg.col, imp: n.imp, top, left: nx + r + 18, right: undefined });
+    } else {
+      setTooltip({ visible: true, fact: n.fact, regionName: reg.name, regionCol: reg.col, imp: n.imp, top, right: cw - nx + r + 18, left: undefined });
+    }
+    setRegionLabel(reg.name);
+    setRegionLabelCol(reg.col);
+  }, []);
+
+  const hideTooltip = useCallback(() => {
+    setTooltip(t => ({ ...t, visible: false }));
+    setRegionLabel('hover a memory');
+    setRegionLabelCol('#3a4060');
   }, []);
 
   useEffect(() => {
@@ -88,17 +146,6 @@ export default function MemoryBrain() {
     canvas.width = W * DPR;
     canvas.height = H * DPR;
     ctx.scale(DPR, DPR);
-
-    // Build edges from shared region clusters (connect nearby same-region nodes)
-    const edges: [number, number][] = [];
-    nodes.forEach((a, i) => {
-      nodes.slice(i + 1).forEach(b => {
-        if (a.region === b.region) {
-          const d = Math.hypot(a.x - b.x, a.y - b.y);
-          if (d < 80) edges.push([a.id, b.id]);
-        }
-      });
-    });
 
     function qp(a: Node, b: Node, t: number) {
       const mx = (a.x + b.x) / 2 - (b.y - a.y) * 0.28;
@@ -133,7 +180,6 @@ export default function MemoryBrain() {
       ctx.fillStyle = '#0c0f1e'; ctx.fill();
       ctx.strokeStyle = '#1c2240'; ctx.lineWidth = 1.5; ctx.stroke();
 
-      // Cerebellum
       ctx.beginPath();
       ctx.moveTo(405, 360);
       ctx.bezierCurveTo(418, 372, 424, 392, 413, 405);
@@ -142,39 +188,36 @@ export default function MemoryBrain() {
       ctx.fillStyle = '#0c0f1e'; ctx.fill();
       ctx.strokeStyle = '#1c2240'; ctx.lineWidth = 1.5; ctx.stroke();
 
-      // Brainstem
       ctx.beginPath();
       ctx.moveTo(290, 383);
       ctx.bezierCurveTo(280, 398, 274, 412, 272, 432);
       ctx.strokeStyle = '#1c2240'; ctx.lineWidth = 10; ctx.lineCap = 'round'; ctx.stroke();
 
-      // Sulci
       ctx.lineCap = 'round'; ctx.lineWidth = 0.8; ctx.strokeStyle = '#171c35';
       [
-        [258,52, 240,98, 222,152, 205,202, 188,252, 168,298, 150,338],
-        [102,228, 160,212, 220,196, 282,186, 344,178, 400,172, 434,167],
-        [374,59, 395,100, 415,138, 435,167],
-        [174,65, 167,102, 163,140, 163,178],
-        [120,160, 150,145, 182,138, 212,138],
-        [330,53, 320,90, 308,132, 300,170],
-        [115,288, 142,270, 168,255, 195,248, 225,244],
+        [258,52,240,98,222,152,205,202,188,252,168,298,150,338],
+        [102,228,160,212,220,196,282,186,344,178,400,172,434,167],
+        [374,59,395,100,415,138,435,167],
+        [174,65,167,102,163,140,163,178],
+        [120,160,150,145,182,138,212,138],
+        [330,53,320,90,308,132,300,170],
+        [115,288,142,270,168,255,195,248,225,244],
       ].forEach(pts => {
         ctx.beginPath(); ctx.moveTo(pts[0], pts[1]);
-        for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
+        for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i+1]);
         ctx.stroke();
       });
 
-      // Region labels
       ctx.textAlign = 'center';
       [
-        { t: 'FRONTAL', x: 120, y: 90, r: 'project' },
-        { t: 'TEMPORAL', x: 162, y: 262, r: 'heart' },
-        { t: 'PARIETAL', x: 335, y: 92, r: 'legal' },
-        { t: 'OCCIPITAL', x: 450, y: 150, r: 'work' },
-        { t: 'LIMBIC', x: 282, y: 186, r: 'family' },
+        { t: 'FRONTAL',   x: 120, y: 90,  r: 'project' },
+        { t: 'TEMPORAL',  x: 162, y: 262, r: 'heart'   },
+        { t: 'PARIETAL',  x: 335, y: 92,  r: 'legal'   },
+        { t: 'OCCIPITAL', x: 450, y: 150, r: 'work'    },
+        { t: 'LIMBIC',    x: 282, y: 186, r: 'family'  },
       ].forEach(z => {
         ctx.font = '7px system-ui';
-        ctx.fillStyle = (REGIONS[z.r]?.col ?? '#ffffff') + '30';
+        ctx.fillStyle = (REGIONS[z.r]?.col ?? '#ffffff') + '28';
         ctx.fillText(z.t, z.x, z.y);
       });
       ctx.textAlign = 'left';
@@ -182,16 +225,16 @@ export default function MemoryBrain() {
 
     function drawEdges() {
       const hov = hovRef.current;
-      edges.forEach(([a, b]) => {
-        const na = nodes.find(n => n.id === a);
-        const nb = nodes.find(n => n.id === b);
+      const ns = nodesRef.current;
+      edgesRef.current.forEach(([a, b]) => {
+        const na = ns.find(n => n.id === a);
+        const nb = ns.find(n => n.id === b);
         if (!na || !nb) return;
         const act = hov && (hov.id === a || hov.id === b);
         const { mx, my } = qp(na, nb, 0.5);
         ctx.beginPath(); ctx.moveTo(na.x, na.y); ctx.quadraticCurveTo(mx, my, nb.x, nb.y);
-        const reg = getRegion(na.region);
-        ctx.strokeStyle = act ? (reg.col + 'aa') : '#182038';
-        ctx.lineWidth = act ? 1.5 : 0.6;
+        ctx.strokeStyle = act ? (getRegion(na.region).col + 'aa') : '#182038';
+        ctx.lineWidth = act ? 1.5 : 0.5;
         ctx.stroke();
       });
     }
@@ -215,22 +258,24 @@ export default function MemoryBrain() {
     function spawnPulse() {
       const hov = hovRef.current;
       if (!hov || Math.random() > 0.05) return;
-      const ce = edges.filter(([a, b]) => a === hov.id || b === hov.id);
+      const ce = edgesRef.current.filter(([a, b]) => a === hov.id || b === hov.id);
       if (!ce.length) return;
       const [a, b] = ce[Math.floor(Math.random() * ce.length)];
-      const na = nodes.find(n => n.id === a);
-      const nb = nodes.find(n => n.id === b);
+      const ns = nodesRef.current;
+      const na = ns.find(n => n.id === a);
+      const nb = ns.find(n => n.id === b);
       if (na && nb) pulsesRef.current.push({ a: na, b: nb, t: 0 });
     }
 
     function drawNodes() {
       const hov = hovRef.current;
-      nodes.forEach(n => {
+      const ns = nodesRef.current;
+      ns.forEach(n => {
         const r = nr(n.imp);
         const reg = getRegion(n.region);
         const col = reg.col;
         const isH = hov?.id === n.id;
-        const isR = hov && edges.some(([a, b]) => (a === hov.id && b === n.id) || (b === hov.id && a === n.id));
+        const isR = hov && edgesRef.current.some(([a, b]) => (a === hov.id && b === n.id) || (b === hov.id && a === n.id));
         const tick = tickRef.current;
         const sc = isH ? 1.7 : isR ? 1.3 : 1 + Math.sin(tick * 0.04 + n.id * 0.7) * 0.1;
 
@@ -284,44 +329,6 @@ export default function MemoryBrain() {
     return () => cancelAnimationFrame(rafId);
   }, [nodes]);
 
-  function showTooltip(n: Node) {
-    const tt = tooltipRef.current;
-    const rl = rlabelRef.current;
-    const canvas = canvasRef.current;
-    if (!tt || !canvas) return;
-    const reg = getRegion(n.region);
-    const cw = canvas.offsetWidth, ch = canvas.offsetHeight;
-    const nx = cw * (n.x / 680), ny = 44 + ch * (n.y / 440);
-    const r = nr(n.imp);
-
-    tt.querySelector('#tt-cat')!.textContent = reg.name;
-    (tt.querySelector('#tt-cat') as HTMLElement).style.cssText =
-      `font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:9px;padding:2px 8px;border-radius:4px;display:inline-block;background:${reg.col}18;color:${reg.col};border:1px solid ${reg.col}44;`;
-    tt.querySelector('#tt-fact')!.textContent = n.fact;
-    tt.querySelector('#tt-imp')!.innerHTML = [1,2,3,4,5]
-      .map(i => `<div style="width:${4+i}px;height:${4+i}px;border-radius:50%;background:${i<=n.imp?reg.col:'#1e2545'}"></div>`)
-      .join('');
-
-    tt.style.opacity = '1';
-    tt.style.top = Math.max(50, Math.min(ny - 65, ch)) + 'px';
-    if (n.x < 340) {
-      tt.style.left = (nx + r + 18) + 'px';
-      tt.style.right = 'auto';
-    } else {
-      tt.style.right = (cw - nx + r + 18) + 'px';
-      tt.style.left = 'auto';
-    }
-
-    if (rl) { rl.textContent = reg.name; rl.style.color = reg.col; }
-  }
-
-  function hideTooltip() {
-    const tt = tooltipRef.current;
-    const rl = rlabelRef.current;
-    if (tt) tt.style.opacity = '0';
-    if (rl) { rl.textContent = 'hover a memory'; rl.style.color = '#3a4060'; }
-  }
-
   function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -329,29 +336,20 @@ export default function MemoryBrain() {
     const mx = (e.clientX - rect.left) * (680 / rect.width);
     const my = (e.clientY - rect.top) * (440 / rect.height);
     let found: Node | null = null, best = Infinity;
-    nodes.forEach(n => {
+    nodesRef.current.forEach(n => {
       const d = Math.hypot(mx - n.x, my - n.y);
       if (d < nr(n.imp) * 1.9 && d < best) { best = d; found = n; }
     });
     if (found !== hovRef.current) {
       hovRef.current = found;
-      if (found) showTooltip(found);
+      if (found) showTooltip(found, canvas.offsetWidth, canvas.offsetHeight);
       else hideTooltip();
     }
   }
 
   return (
-    <div style={{
-      background: '#07090f', minHeight: '100vh', display: 'flex',
-      flexDirection: 'column', fontFamily: 'system-ui, sans-serif',
-    }}>
-      {/* Header */}
-      <div style={{
-        padding: '10px 16px', borderBottom: '1px solid #141828',
-        background: 'rgba(7,9,15,0.97)', display: 'flex',
-        alignItems: 'center', gap: '10px', height: '44px', boxSizing: 'border-box',
-        flexShrink: 0,
-      }}>
+    <div style={{ background: '#07090f', minHeight: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, sans-serif' }}>
+      <div style={{ padding: '10px 16px', borderBottom: '1px solid #141828', background: 'rgba(7,9,15,0.97)', display: 'flex', alignItems: 'center', gap: '10px', height: '44px', boxSizing: 'border-box', flexShrink: 0 }}>
         <a href="/" style={{ textDecoration: 'none' }}>
           <span style={{ color: '#cc1a1a', fontSize: '12px', fontWeight: 700, letterSpacing: '.1em' }}>◈</span>
         </a>
@@ -360,22 +358,15 @@ export default function MemoryBrain() {
         <span style={{ color: '#2d3250', fontSize: '10px', letterSpacing: '.06em' }}>
           {loading ? 'loading...' : `${count} memories · 6 regions`}
         </span>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '16px' }}>
           <span style={{ color: '#1e2545', fontSize: '10px', letterSpacing: '.06em' }}>powered by the future</span>
-          <span ref={rlabelRef} style={{ fontSize: '10px', color: '#3a4060', letterSpacing: '.07em', transition: 'color .3s' }}>
-            hover a memory
-          </span>
+          <span style={{ fontSize: '10px', color: regionLabelCol, letterSpacing: '.07em', transition: 'color .3s' }}>{regionLabel}</span>
         </div>
       </div>
 
-      {/* Canvas */}
       <div style={{ flex: 1, position: 'relative' }}>
         {loading ? (
-          <div style={{
-            position: 'absolute', inset: 0, display: 'flex',
-            alignItems: 'center', justifyContent: 'center',
-            flexDirection: 'column', gap: '12px',
-          }}>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '12px' }}>
             <span style={{ color: '#cc1a1a', fontSize: '24px' }}>◈</span>
             <span style={{ color: '#2d3250', fontSize: '11px', letterSpacing: '.1em' }}>LOADING MEMORIES...</span>
           </div>
@@ -388,37 +379,53 @@ export default function MemoryBrain() {
               onMouseLeave={() => { hovRef.current = null; hideTooltip(); }}
             />
 
-            {/* Tooltip */}
-            <div
-              ref={tooltipRef}
-              style={{
-                position: 'absolute', pointerEvents: 'none', opacity: 0,
-                transition: 'opacity .18s, left .2s, right .2s',
-                zIndex: 20, width: '220px',
+            {tooltip.visible && (
+              <div style={{
+                position: 'absolute',
+                top: tooltip.top,
+                left: tooltip.left !== undefined ? tooltip.left : 'auto',
+                right: tooltip.right !== undefined ? tooltip.right : 'auto',
+                pointerEvents: 'none',
+                zIndex: 20,
+                width: '220px',
                 background: 'rgba(8,10,20,0.98)',
-                border: '1px solid #242840', borderRadius: '8px',
+                border: '1px solid #242840',
+                borderRadius: '8px',
                 padding: '13px 14px',
                 boxShadow: '0 8px 32px rgba(0,0,0,.6)',
-              }}
-            >
-              <div id="tt-cat" />
-              <p id="tt-fact" style={{ fontSize: '12px', lineHeight: 1.65, color: '#c8cfe0', margin: '0 0 10px' }} />
-              <div id="tt-imp" style={{ display: 'flex', gap: '3px', alignItems: 'flex-end' }} />
-            </div>
+                transition: 'top .15s',
+              }}>
+                <div style={{
+                  fontSize: '9px', fontWeight: 700, letterSpacing: '.1em',
+                  textTransform: 'uppercase', marginBottom: '9px', padding: '2px 8px',
+                  borderRadius: '4px', display: 'inline-block',
+                  background: tooltip.regionCol + '18',
+                  color: tooltip.regionCol,
+                  border: `1px solid ${tooltip.regionCol}44`,
+                }}>
+                  {tooltip.regionName}
+                </div>
+                <p style={{ fontSize: '12px', lineHeight: 1.65, color: '#c8cfe0', margin: '0 0 10px' }}>
+                  {tooltip.fact}
+                </p>
+                <div style={{ display: 'flex', gap: '3px', alignItems: 'flex-end' }}>
+                  {[1,2,3,4,5].map(i => (
+                    <div key={i} style={{
+                      width: `${4+i}px`, height: `${4+i}px`, borderRadius: '50%',
+                      background: i <= tooltip.imp ? tooltip.regionCol : '#1e2545',
+                    }} />
+                  ))}
+                </div>
+              </div>
+            )}
 
-            {/* Legend */}
-            <div style={{
-              position: 'absolute', bottom: '12px', left: '16px',
-              display: 'flex', gap: '12px', flexWrap: 'wrap',
-            }}>
-              {Object.entries(REGIONS)
-                .filter(([key]) => !['relationship','preference','biographical','health','financial'].includes(key))
-                .map(([, reg]) => (
-                  <div key={reg.name} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: reg.col, opacity: 0.8 }} />
-                    <span style={{ fontSize: '9px', color: '#3a4060', letterSpacing: '.07em' }}>{reg.name.toUpperCase()}</span>
-                  </div>
-                ))}
+            <div style={{ position: 'absolute', bottom: '12px', left: '16px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              {LEGEND_REGIONS.map(r => (
+                <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: r.col, opacity: 0.8 }} />
+                  <span style={{ fontSize: '9px', color: '#3a4060', letterSpacing: '.07em' }}>{r.name.toUpperCase()}</span>
+                </div>
+              ))}
             </div>
           </>
         )}
