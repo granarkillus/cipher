@@ -57,8 +57,8 @@ function positionNode(memory: Memory, index: number): Node {
     fact: memory.fact,
     imp: Math.min(5, Math.max(1, memory.importance ?? 1)),
     region: (memory.category ?? 'self').toLowerCase(),
-    x: Math.round(reg.cx + Math.cos(angle) * dist),
-    y: Math.round(reg.cy + Math.sin(angle) * dist),
+    x: isFinite(reg.cx + Math.cos(angle) * dist) ? Math.round(reg.cx + Math.cos(angle) * dist) : reg.cx,
+    y: isFinite(reg.cy + Math.sin(angle) * dist) ? Math.round(reg.cy + Math.sin(angle) * dist) : reg.cy,
   };
 }
 
@@ -269,7 +269,7 @@ export default function MemoryBrain() {
 
     function drawNodes() {
       const hov = hovRef.current;
-      const ns = nodesRef.current;
+      const ns = nodesRef.current.filter(n => isFinite(n.x) && isFinite(n.y) && n.x > 0 && n.y > 0);
       ns.forEach(n => {
         const r = nr(n.imp);
         const reg = getRegion(n.region);
@@ -281,6 +281,7 @@ export default function MemoryBrain() {
 
         if (isH || n.imp >= 4) {
           const gr = r * sc * (isH ? 4 : 2.8);
+          if (!isFinite(gr) || gr <= 0) return;
           const grd = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, gr);
           grd.addColorStop(0, reg.glow + (isH ? 0.5 : 0.18) + ')');
           grd.addColorStop(1, reg.glow + '0)');
