@@ -6,7 +6,7 @@ export async function GET() {
     const supabase = getServiceClient();
     const { data, error } = await supabase
       .from('memories')
-      .select('id, fact, importance, category, created_at')
+      .select('id, fact, importance, created_at')
       .order('importance', { ascending: false });
     if (error) throw error;
     return NextResponse.json({ memories: data ?? [] });
