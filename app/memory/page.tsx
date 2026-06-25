@@ -313,7 +313,7 @@ export default function MemoryBrain() {
         const sc = isH ? 2.2 : isR ? 1.5 : 1 + Math.sin(tick * 0.04 + n.id * 0.7) * 0.08;
 
         // Glow for hovered or high importance
-        if (isH || n.imp >= 3) {
+        if (isH || n.imp >= 1) {
           const gr = r * sc * (isH ? 5 : 3);
           if (isFinite(gr) && gr > 0) {
             const grd = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, gr);
