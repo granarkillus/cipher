@@ -297,7 +297,7 @@ export default function MemoryBrain() {
 
         ctx.beginPath(); ctx.arc(n.x, n.y, r * sc, 0, Math.PI * 2);
         ctx.fillStyle = col;
-        ctx.globalAlpha = isH ? 1 : isR ? 0.92 : 0.68;
+        ctx.globalAlpha = isH ? 1 : isR ? 0.95 : 0.85;
         ctx.fill(); ctx.globalAlpha = 1;
 
         ctx.beginPath();
