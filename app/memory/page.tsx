@@ -279,7 +279,7 @@ export default function MemoryBrain() {
         const tick = tickRef.current;
         const sc = isH ? 1.7 : isR ? 1.3 : 1 + Math.sin(tick * 0.04 + n.id * 0.7) * 0.1;
 
-        if (isH || n.imp >= 4) {
+        if (isH || n.imp >= 1) {
           const gr = r * sc * (isH ? 4 : 2.8);
           if (!isFinite(gr) || gr <= 0) return;
           const grd = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, gr);
