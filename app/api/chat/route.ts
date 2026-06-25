@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { getServiceClient } from '@/lib/supabase';
+import { createServerClient } from '@supabase/ssr';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -11,16 +12,36 @@ const GITHUB_OWNER  = 'granarkillus';
 const GITHUB_REPO   = 'cipher';
 const GITHUB_BRANCH = 'main';
 
+// ── Resolve the logged-in user from request cookies ───────────────────────────
+async function getUserId(request: NextRequest): Promise<string | null> {
+  try {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return request.cookies.getAll(); },
+          setAll() { /* read-only in API route */ },
+        },
+      }
+    );
+    const { data: { user } } = await supabase.auth.getUser();
+    return user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Tool definitions ─────────────────────────────────────────────────────────
 
 const TOOLS: Anthropic.Tool[] = [
   {
     name: 'write_memory',
-    description: 'Write a new memory or fact to permanent memory store. Use when Markham corrects something, shares something new and important, or explicitly asks you to remember something. Do NOT use for things already in core context.',
+    description: 'Write a new memory or fact to permanent memory store. Use when the user corrects something, shares something new and important, or explicitly asks you to remember something. Do NOT use for things already in core context.',
     input_schema: {
       type: 'object' as const,
       properties: {
-        fact:       { type: 'string',  description: 'The fact to store. Concise, specific, a statement about Markham.' },
+        fact:       { type: 'string',  description: 'The fact to store. Concise, specific, a statement about the user.' },
         importance: { type: 'integer', description: 'Importance 1-5. 5=critical. 3=useful. 1=minor.', minimum: 1, maximum: 5 },
       },
       required: ['fact', 'importance'],
@@ -43,9 +64,9 @@ const TOOLS: Anthropic.Tool[] = [
         },
         limit: {
           type: 'integer',
-          description: 'Max results to return (default 10, max 50).',
+          description: 'Max results to return (default 10, max 250).',
           minimum: 1,
-          maximum: 50,
+          maximum: 250,
         },
       },
       required: ['query_type'],
@@ -117,6 +138,7 @@ const TOOLS: Anthropic.Tool[] = [
 async function execWriteMemory(
   input: { fact: string; importance: number },
   conversationId: string,
+  userId: string | null,
   supabase: ReturnType<typeof getServiceClient>
 ): Promise<{ result: string; memoryWritten: boolean }> {
   try {
@@ -131,6 +153,7 @@ async function execWriteMemory(
       importance: Math.min(5, Math.max(1, input.importance)),
       source_conversation: conversationId,
       embedding: emb,
+      user_id: userId,
     });
     return { result: 'Memory saved.', memoryWritten: true };
   } catch (e) {
@@ -140,15 +163,16 @@ async function execWriteMemory(
 
 async function execQueryCipherDb(
   input: { query_type: string; search_term?: string; limit?: number },
+  userId: string | null,
   supabase: ReturnType<typeof getServiceClient>
 ): Promise<string> {
-  const limit = Math.min(input.limit || 10, 50);
+  const limit = Math.min(input.limit || 10, 250);
   try {
     switch (input.query_type) {
       case 'stats': {
         const [msgResult, memResult] = await Promise.all([
-          supabase.from('messages').select('*', { count: 'exact', head: true }),
-          supabase.from('memories').select('*', { count: 'exact', head: true }),
+          supabase.from('messages').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+          supabase.from('memories').select('*', { count: 'exact', head: true }).eq('user_id', userId),
         ]);
         return JSON.stringify({
           total_messages: msgResult.count ?? 0,
@@ -159,6 +183,7 @@ async function execQueryCipherDb(
         const { data, error } = await supabase
           .from('memories')
           .select('id, fact, importance, created_at')
+          .eq('user_id', userId)
           .order('importance', { ascending: false })
           .order('created_at', { ascending: false })
           .limit(limit);
@@ -170,6 +195,7 @@ async function execQueryCipherDb(
         const { data, error } = await supabase
           .from('memories')
           .select('id, fact, importance, created_at')
+          .eq('user_id', userId)
           .ilike('fact', `%${input.search_term}%`)
           .limit(limit);
         if (error) return `Error: ${error.message}`;
@@ -179,6 +205,7 @@ async function execQueryCipherDb(
         const { data, error } = await supabase
           .from('messages')
           .select('conversation_id, role, content, created_at')
+          .eq('user_id', userId)
           .order('created_at', { ascending: false })
           .limit(limit);
         if (error) return `Error: ${error.message}`;
@@ -189,6 +216,7 @@ async function execQueryCipherDb(
         const { data, error } = await supabase
           .from('messages')
           .select('role, content, created_at, conversation_id')
+          .eq('user_id', userId)
           .ilike('content', `%${input.search_term}%`)
           .order('created_at', { ascending: false })
           .limit(limit);
@@ -247,7 +275,7 @@ async function execPatchGithubFile(input: { path: string; search: string; replac
       { headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } }
     );
     if (!getRes.ok) return `Error reading file: ${getRes.status}`;
-    
+
     const data = await getRes.json();
     const sha = data.sha;
     const currentContent = Buffer.from(data.content, 'base64').toString('utf8');
@@ -260,9 +288,9 @@ async function execPatchGithubFile(input: { path: string; search: string; replac
 
     const putRes = await fetch(
       `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${input.path}`,
-      { 
-        method: 'PUT', 
-        headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' }, 
+      {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: input.commit_message,
           content: Buffer.from(newContent, 'utf8').toString('base64'),
@@ -272,7 +300,7 @@ async function execPatchGithubFile(input: { path: string; search: string; replac
       }
     );
     if (!putRes.ok) return `Error committing: ${putRes.status} ${await putRes.text()}`;
-    
+
     const result = await putRes.json();
     return `Patched and committed. SHA: ${result.content?.sha?.slice(0, 7)}`;
   } catch (e) { return `Error: ${e}`; }
@@ -313,17 +341,26 @@ async function execExtractPdf(input: { fileBuffer: string; fileName?: string }):
   }
 }
 
+// GitHub/Vercel tools are founder-only. Restrict to the founder user id.
+const FOUNDER_USER_ID = '7ce0adf7-9df6-4af5-b2cd-b88b81548040';
+const FOUNDER_ONLY_TOOLS = new Set(['read_github_file', 'write_github_file', 'patch_github_file', 'check_vercel_deployment']);
+
 async function executeTool(
   name: string,
   input: Record<string, unknown>,
   conversationId: string,
+  userId: string | null,
   supabase: ReturnType<typeof getServiceClient>
 ): Promise<{ result: string; memoryWritten?: boolean }> {
+  // Block self-modification tools for everyone except the founder
+  if (FOUNDER_ONLY_TOOLS.has(name) && userId !== FOUNDER_USER_ID) {
+    return { result: 'That capability is not available on this account.' };
+  }
   switch (name) {
     case 'write_memory':
-      return execWriteMemory(input as { fact: string; importance: number }, conversationId, supabase);
+      return execWriteMemory(input as { fact: string; importance: number }, conversationId, userId, supabase);
     case 'query_cipher_db':
-      return { result: await execQueryCipherDb(input as { query_type: string; search_term?: string; limit?: number }, supabase) };
+      return { result: await execQueryCipherDb(input as { query_type: string; search_term?: string; limit?: number }, userId, supabase) };
     case 'read_github_file':
       return { result: await execReadGithubFile(input as { path: string }) };
     case 'write_github_file':
@@ -355,6 +392,12 @@ async function embed(text: string): Promise<number[]> {
 
 export async function POST(request: NextRequest) {
   try {
+    // Resolve the logged-in user FIRST. No user → reject.
+    const userId = await getUserId(request);
+    if (!userId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
     const contentType = request.headers.get('content-type') || '';
 
     let message = '', conversationId = '', model = 'claude-haiku-4-5-20251001';
@@ -397,12 +440,13 @@ export async function POST(request: NextRequest) {
     const textToEmbed = message.trim() || fileName || '[file uploaded]';
     const embedding = await embed(textToEmbed);
 
+    // All retrieval is scoped to THIS user via user-filtered RPCs + history filter.
     const [{ data: similarMessages }, { data: similarMemories }, { data: coreFacts }, { data: history }] =
       await Promise.all([
-        supabase.rpc('match_messages', { query_embedding: embedding, match_threshold: 0.3, match_count: 6 }),
-        supabase.rpc('match_memories', { query_embedding: embedding, match_threshold: 0.3, match_count: 4 }),
-        supabase.from('core_facts').select('content').single(),
-        supabase.from('messages').select('role, content').eq('conversation_id', conversationId)
+        supabase.rpc('match_messages', { query_embedding: embedding, match_threshold: 0.3, match_count: 6, p_user_id: userId }),
+        supabase.rpc('match_memories', { query_embedding: embedding, match_threshold: 0.3, match_count: 4, p_user_id: userId }),
+        supabase.from('core_facts').select('content').eq('user_id', userId).single(),
+        supabase.from('messages').select('role, content').eq('conversation_id', conversationId).eq('user_id', userId)
           .order('created_at', { ascending: false }).limit(20),
       ]);
 
@@ -416,10 +460,10 @@ export async function POST(request: NextRequest) {
       ? `Relevant past context:\n${similarMessages.map((m: { role: string; content: string }) => `[${m.role}]: ${m.content.slice(0, 300)}`).join('\n')}\n\n`
       : '';
 
-    const systemPrompt = `${coreSection}You are Cipher, a personal AI with access to stored memories, core facts, direct database access, and tools to read/write the cipher GitHub repo.
+    const isFounder = userId === FOUNDER_USER_ID;
 
-${memSection}${ctxSection}TOOLS:
-- write_memory: store a new memory when Markham corrects you or shares something new
+    const founderTools = `TOOLS:
+- write_memory: store a new memory when the user corrects you or shares something new
 - query_cipher_db: query the Supabase database directly — use for message counts, memory lists, searches
 - read_github_file: read any file in the cipher repo before modifying it
 - write_github_file: commit a file directly to GitHub (triggers Vercel deploy) — always read first, always write complete file, always call check_vercel_deployment after
@@ -431,7 +475,19 @@ RULES:
 - Never report a tool action complete without verified result
 - After write_github_file: always call check_vercel_deployment, report SHA + deployment state in one message
 - For database questions: always use query_cipher_db instead of guessing
-- For code changes: read → modify complete file → write → check deployment
+- For code changes: read → modify complete file → write → check deployment`;
+
+    const userTools = `TOOLS:
+- write_memory: store a new memory when the user corrects you or shares something new and important
+- query_cipher_db: look up the user's own message counts, memory lists, and searches
+
+RULES:
+- Never report a tool action complete without a verified result
+- For questions about stored data: use query_cipher_db instead of guessing`;
+
+    const systemPrompt = `${coreSection}You are Cipher, a personal AI assistant with a persistent memory of your conversations with this user.
+
+${memSection}${ctxSection}${isFounder ? founderTools : userTools}
 
 Rules for code in chat: wrap in markdown code blocks with language. Never truncate.
 Be direct. Match the register. Don't pad.`;
@@ -443,23 +499,18 @@ Be direct. Match the register. Don't pad.`;
 
     const userContent: ContentBlock[] = [];
     if (imageData && imageMediaType) {
-      // Image file — use image block
       userContent.push({ type: 'image', source: { type: 'base64', media_type: imageMediaType, data: imageData } });
     } else if (imageData && fileText === '__PDF__') {
-      // PDF file — use document block with base64 source
       userContent.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: imageData } });
     }
     if (fileText && fileText !== '__PDF__') {
-      // Plain text / code file — embed as fenced code block
       userContent.push({ type: 'text', text: `File: ${fileName}\n\`\`\`${fileName?.split('.').pop() || 'text'}\n${fileText}\n\`\`\`` });
     }
     if (message.trim()) {
       userContent.push({ type: 'text', text: message });
     } else if (imageData && imageMediaType) {
-      // Image with no message — ask Claude to describe it
       userContent.push({ type: 'text', text: 'What do you see in this image?' });
     } else if (imageData && fileText === '__PDF__') {
-      // PDF with no message — ask Claude to read it
       userContent.push({ type: 'text', text: 'Please read and summarize this document.' });
     }
 
@@ -470,6 +521,11 @@ Be direct. Match the register. Don't pad.`;
 
     // Upgrade model for any file upload — PDF/image document API requires sonnet or better
     if (imageData || fileText) model = 'claude-sonnet-4-6';
+
+    // Tools available to this user (founder gets the full set)
+    const availableTools = isFounder
+      ? TOOLS
+      : TOOLS.filter(t => !FOUNDER_ONLY_TOOLS.has(t.name));
 
     // Agentic tool loop
     let currentMessages = [...claudeMessages];
@@ -484,7 +540,7 @@ Be direct. Match the register. Don't pad.`;
         model,
         max_tokens: 8096,
         system: systemPrompt,
-        tools: TOOLS,
+        tools: availableTools,
         messages: currentMessages,
       });
 
@@ -501,6 +557,7 @@ Be direct. Match the register. Don't pad.`;
           toolBlock.name,
           toolBlock.input as Record<string, unknown>,
           conversationId,
+          userId,
           supabase
         );
         if (mw) memoryWritten = true;
@@ -519,8 +576,8 @@ Be direct. Match the register. Don't pad.`;
       : `[${fileName || 'file uploaded'}]`;
 
     await supabase.from('messages').insert([
-      { conversation_id: conversationId, role: 'user',      content: userMessageContent, embedding },
-      { conversation_id: conversationId, role: 'assistant', content: reply },
+      { conversation_id: conversationId, role: 'user',      content: userMessageContent, embedding, user_id: userId },
+      { conversation_id: conversationId, role: 'assistant', content: reply,              user_id: userId },
     ]);
 
     return NextResponse.json({ reply, memoryWritten });
