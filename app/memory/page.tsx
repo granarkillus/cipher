@@ -394,7 +394,7 @@ export default function MemoryBrain() {
               {LEGEND.map(r=>(
                 <div key={r.key} style={{ display:'flex', alignItems:'center', gap:5 }}>
                   <div style={{ width:7, height:7, borderRadius:'50%', background:REGIONS[r.key].col, boxShadow:`0 0 6px ${REGIONS[r.key].col}` }} />
-                  <span style={{ fontSize:9, color:'#3a4060', letterSpacing:'.07em' }}>{r.name.toUpperCase()}</span>
+                  <span style={{ fontSize:9, color:'#7a86a8', letterSpacing:'.07em' }}>{r.name.toUpperCase()}</span>
                 </div>
               ))}
             </div>
