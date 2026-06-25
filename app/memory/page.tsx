@@ -234,7 +234,7 @@ export default function MemoryBrain() {
       ctx.textAlign='center';
       Object.values(REGIONS).forEach(reg => {
         ctx.font='700 9px system-ui';
-        ctx.fillStyle = `rgba(${reg.rgb[0]},${reg.rgb[1]},${reg.rgb[2]},0.6)`;
+        ctx.fillStyle = `rgba(${reg.rgb[0]},${reg.rgb[1]},${reg.rgb[2]},0.85)`;
         ctx.fillText(reg.name.toUpperCase(), reg.cx, reg.cy - reg.spread - 14);
       });
       ctx.textAlign='left';
