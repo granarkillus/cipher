@@ -29,17 +29,17 @@ interface TooltipState {
 }
 
 const REGIONS: Record<string, { name: string; col: string; glow: string; cx: number; cy: number }> = {
-  legal:        { name: 'The Courts',   col: '#e24b4a', glow: 'rgba(226,75,74,',   cx: 270, cy: 130 },
-  heart:        { name: 'The Heart',    col: '#e070a0', glow: 'rgba(220,110,160,', cx: 165, cy: 310 },
-  relationship: { name: 'The Heart',    col: '#e070a0', glow: 'rgba(220,110,160,', cx: 165, cy: 310 },
-  family:       { name: 'The Nest',     col: '#22c55e', glow: 'rgba(34,197,94,',   cx: 285, cy: 228 },
-  project:      { name: 'The Workshop', col: '#f59e0b', glow: 'rgba(245,158,11,',  cx: 132, cy: 190 },
-  work:         { name: 'The Shift',    col: '#a78bfa', glow: 'rgba(167,139,250,', cx: 448, cy: 208 },
-  self:         { name: 'The Self',     col: '#38bdf8', glow: 'rgba(56,189,248,',  cx: 378, cy: 152 },
-  preference:   { name: 'The Self',     col: '#38bdf8', glow: 'rgba(56,189,248,',  cx: 378, cy: 152 },
-  biographical: { name: 'The Self',     col: '#38bdf8', glow: 'rgba(56,189,248,',  cx: 378, cy: 152 },
-  health:       { name: 'The Self',     col: '#38bdf8', glow: 'rgba(56,189,248,',  cx: 378, cy: 152 },
-  financial:    { name: 'The Workshop', col: '#f59e0b', glow: 'rgba(245,158,11,',  cx: 132, cy: 190 },
+  legal:        { name: 'The Courts',   col: '#e24b4a', glow: 'rgba(226,75,74,',   cx: 210, cy: 148 },
+  heart:        { name: 'The Heart',    col: '#e070a0', glow: 'rgba(220,110,160,', cx: 148, cy: 295 },
+  relationship: { name: 'The Heart',    col: '#e070a0', glow: 'rgba(220,110,160,', cx: 148, cy: 295 },
+  family:       { name: 'The Nest',     col: '#22c55e', glow: 'rgba(34,197,94,',   cx: 295, cy: 215 },
+  project:      { name: 'The Workshop', col: '#f59e0b', glow: 'rgba(245,158,11,',  cx: 148, cy: 185 },
+  work:         { name: 'The Shift',    col: '#a78bfa', glow: 'rgba(167,139,250,', cx: 450, cy: 200 },
+  self:         { name: 'The Self',     col: '#38bdf8', glow: 'rgba(56,189,248,',  cx: 370, cy: 148 },
+  preference:   { name: 'The Self',     col: '#38bdf8', glow: 'rgba(56,189,248,',  cx: 370, cy: 148 },
+  biographical: { name: 'The Self',     col: '#38bdf8', glow: 'rgba(56,189,248,',  cx: 370, cy: 148 },
+  health:       { name: 'The Self',     col: '#38bdf8', glow: 'rgba(56,189,248,',  cx: 370, cy: 148 },
+  financial:    { name: 'The Workshop', col: '#f59e0b', glow: 'rgba(245,158,11,',  cx: 148, cy: 185 },
 };
 
 const DEFAULT_REGION = { name: 'The Self', col: '#38bdf8', glow: 'rgba(56,189,248,', cx: 378, cy: 152 };
