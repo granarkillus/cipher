@@ -51,7 +51,7 @@ function getRegion(category?: string) {
 function positionNode(memory: Memory, index: number): Node {
   const reg = getRegion(memory.category);
   const angle = ((index * 137) % 360) * (Math.PI / 180);
-  const dist = 20 + (index % 8) * 12;
+  const dist = 18 + (index % 12) * 10;
   return {
     id: memory.id,
     fact: memory.fact,
