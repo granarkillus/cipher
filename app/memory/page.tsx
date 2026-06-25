@@ -131,7 +131,7 @@ export default function MemoryBrain() {
   }, []);
 
   const updateTooltip = useCallback((n: Node | null) => {
-    if (!n) { setTooltip(t=>({...t,visible:false})); setRegionLabel('hover a memory'); setRegionLabelCol('#3a4060'); return; }
+    if (!n) { setTooltip(t=>({...t,visible:false})); setRegionLabel('hover a memory'); setRegionLabelCol('#7a86a8'); return; }
     const reg = REGIONS[n.region] ?? REGIONS.self;
     const { scale, ox, oy } = transformRef.current;
     const cx = ox + n.x * scale; const cy = oy + n.y * scale;
