@@ -82,7 +82,7 @@ export default function MemoryBrain() {
   const [loading, setLoading] = useState(true);
   const [count, setCount] = useState(0);
   const [regionLabel, setRegionLabel] = useState('hover a memory');
-  const [regionLabelCol, setRegionLabelCol] = useState('#3a4060');
+  const [regionLabelCol, setRegionLabelCol] = useState('#7a86a8');
   const [tooltip, setTooltip] = useState<TooltipState>({ visible:false, fact:'', regionName:'', regionCol:'#38bdf8', imp:1, cx:0, cy:0 });
   const hovRef = useRef<Node | null>(null);
   const tickRef = useRef(0);
