@@ -7,12 +7,12 @@ interface TooltipState { visible: boolean; fact: string; regionName: string; reg
 
 // Six fixed region centers, well-separated, all inside the brain shape.
 const REGIONS: Record<string, { name: string; col: string; glow: string; cx: number; cy: number; spread: number }> = {
-  legal:   { name: 'The Courts',   col: '#e24b4a', glow: 'rgba(226,75,74,',   cx: 300, cy: 110, spread: 62 },
-  self:    { name: 'The Self',     col: '#38bdf8', glow: 'rgba(56,189,248,',  cx: 430, cy: 175, spread: 70 },
-  work:    { name: 'The Shift',    col: '#a78bfa', glow: 'rgba(167,139,250,', cx: 470, cy: 245, spread: 48 },
-  family:  { name: 'The Nest',     col: '#22c55e', glow: 'rgba(34,197,94,',   cx: 300, cy: 235, spread: 55 },
-  heart:   { name: 'The Heart',    col: '#e070a0', glow: 'rgba(220,110,160,', cx: 165, cy: 300, spread: 60 },
-  project: { name: 'The Workshop', col: '#f59e0b', glow: 'rgba(245,158,11,',  cx: 155, cy: 175, spread: 55 },
+  legal:   { name: 'The Courts',   col: '#ff5a59', glow: 'rgba(255,90,89,',   cx: 285, cy: 108, spread: 78 },
+  self:    { name: 'The Self',     col: '#4cc4ff', glow: 'rgba(76,196,255,',  cx: 440, cy: 168, spread: 82 },
+  work:    { name: 'The Shift',    col: '#b89bff', glow: 'rgba(184,155,255,', cx: 475, cy: 252, spread: 58 },
+  family:  { name: 'The Nest',     col: '#3ee07a', glow: 'rgba(62,224,122,',  cx: 295, cy: 232, spread: 66 },
+  heart:   { name: 'The Heart',    col: '#ff7eb0', glow: 'rgba(255,126,176,', cx: 158, cy: 298, spread: 70 },
+  project: { name: 'The Workshop', col: '#ffb22e', glow: 'rgba(255,178,46,',  cx: 150, cy: 172, spread: 66 },
 };
 
 // Aliases → canonical region key
@@ -28,7 +28,7 @@ function regionKey(category?: string): string {
   return 'self';
 }
 
-function nr(imp: number) { return 4 + imp * 2.6; }
+function nr(imp: number) { return 3.5 + imp * 2.2; }
 
 const LEGEND = [
   { key: 'legal',   name: 'The Courts'   },
@@ -88,21 +88,26 @@ export default function MemoryBrain() {
           };
         });
 
-        // Edges: connect a few nearest neighbors per region (cap per region)
+        // Edges: connect each node to its 2 nearest same-region neighbors
         const edges: [number, number][] = [];
         const byRegion: Record<string, Node[]> = {};
         positioned.forEach(n => { (byRegion[n.region] ??= []).push(n); });
         Object.values(byRegion).forEach(group => {
-          let regionEdges = 0;
-          for (let i = 0; i < group.length && regionEdges < 50; i++) {
-            for (let j = i + 1; j < group.length && regionEdges < 50; j++) {
-              const d = Math.hypot(group[i].x - group[j].x, group[i].y - group[j].y);
-              if (d < 32) { edges.push([group[i].id, group[j].id]); regionEdges++; }
-            }
-          }
+          group.forEach(a => {
+            const neighbors = group
+              .filter(b => b.id !== a.id)
+              .map(b => ({ b, d: Math.hypot(a.x - b.x, a.y - b.y) }))
+              .sort((p, q) => p.d - q.d)
+              .slice(0, 2);
+            neighbors.forEach(({ b }) => {
+              // avoid duplicate edges
+              if (!edges.some(([x, y]) => (x === a.id && y === b.id) || (x === b.id && y === a.id))) {
+                edges.push([a.id, b.id]);
+              }
+            });
+          });
         });
 
-        console.log('NODE POSITIONS:', JSON.stringify(positioned.map(n => ({ r: n.region, x: n.x, y: n.y }))));
         nodesRef.current = positioned;
         edgesRef.current = edges;
         setNodes(positioned);
@@ -186,12 +191,22 @@ export default function MemoryBrain() {
         for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i+1]);
         ctx.stroke();
       });
-      // Region name labels at each center, faint
+      // Faint territory rings around each region
+      Object.values(REGIONS).forEach(reg => {
+        ctx.beginPath();
+        ctx.arc(reg.cx, reg.cy, reg.spread + 8, 0, Math.PI * 2);
+        ctx.strokeStyle = reg.col + '12';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+      // Region name labels above each cluster, clearly visible
       ctx.textAlign = 'center';
       Object.values(REGIONS).forEach(reg => {
-        ctx.font = '8px system-ui';
-        ctx.fillStyle = reg.col + '30';
-        ctx.fillText(reg.name.toUpperCase(), reg.cx, reg.cy - reg.spread - 6);
+        ctx.font = '700 9px system-ui';
+        ctx.fillStyle = reg.col + '88';
+        ctx.fillText(reg.name.toUpperCase(), reg.cx, reg.cy - reg.spread - 10);
       });
       ctx.textAlign = 'left';
     }
@@ -204,8 +219,8 @@ export default function MemoryBrain() {
         const act = hov && (hov.id === a || hov.id === b);
         const { mx, my } = qp(na, nb, 0.5);
         ctx.beginPath(); ctx.moveTo(na.x, na.y); ctx.quadraticCurveTo(mx, my, nb.x, nb.y);
-        ctx.strokeStyle = act ? ((REGIONS[na.region]?.col ?? '#888') + '99') : '#1e2848';
-        ctx.lineWidth = act ? 1.2 : 0.4; ctx.stroke();
+        ctx.strokeStyle = act ? ((REGIONS[na.region]?.col ?? '#888') + 'dd') : ((REGIONS[na.region]?.col ?? '#888') + '28');
+        ctx.lineWidth = act ? 1.6 : 0.7; ctx.stroke();
       });
     }
 
@@ -246,10 +261,10 @@ export default function MemoryBrain() {
         const tick = tickRef.current;
         const sc = isH ? 2.2 : isR ? 1.5 : 1 + Math.sin(tick * 0.04 + n.id * 0.7) * 0.08;
         // Glow for ALL nodes (subtle), strong on hover
-        const gr = r * sc * (isH ? 5 : 2.4);
+        const gr = r * sc * (isH ? 4.5 : 1.8);
         if (isFinite(gr) && gr > 0) {
           const grd = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, gr);
-          grd.addColorStop(0, reg.glow + (isH ? 0.5 : 0.14) + ')');
+          grd.addColorStop(0, reg.glow + (isH ? 0.55 : 0.22) + ')');
           grd.addColorStop(1, reg.glow + '0)');
           ctx.beginPath(); ctx.arc(n.x, n.y, gr, 0, Math.PI*2); ctx.fillStyle = grd; ctx.fill();
         }
