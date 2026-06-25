@@ -365,7 +365,7 @@ export default function MemoryBrain() {
         <a href="/" style={{ textDecoration:'none' }}><span style={{ color:'#cc1a1a', fontSize:12, fontWeight:700, letterSpacing:'.1em' }}>◈</span></a>
         <span style={{ color:'#cc1a1a', fontSize:12, fontWeight:700, letterSpacing:'.1em' }}>MEMORY BRAIN</span>
         <span style={{ color:'#1e2545', fontSize:10 }}>·</span>
-        <span style={{ color:'#2d3250', fontSize:10, letterSpacing:'.06em' }}>{loading?'loading...':`${count} memories · 6 regions`}</span>
+        <span style={{ color:'#7a86a8', fontSize:10, letterSpacing:'.06em' }}>{loading?'loading...':`${count} memories · 6 regions`}</span>
         <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:16 }}>
           <span style={{ color:'#1e2545', fontSize:10, letterSpacing:'.06em' }}>powered by the future</span>
           <span style={{ fontSize:10, color:regionLabelCol, letterSpacing:'.07em', transition:'color .3s', minWidth:80, textAlign:'right' }}>{regionLabel}</span>
