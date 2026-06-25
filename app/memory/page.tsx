@@ -102,6 +102,7 @@ export default function MemoryBrain() {
           }
         });
 
+        console.log('NODE POSITIONS:', JSON.stringify(positioned.map(n => ({ r: n.region, x: n.x, y: n.y }))));
         nodesRef.current = positioned;
         edgesRef.current = edges;
         setNodes(positioned);
