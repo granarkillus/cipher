@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pdfParse from 'pdf-parse';
+import { getAllowedUserId } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
+  const userId = await getAllowedUserId(request);
+  if (!userId) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
   try {
     const { fileBuffer, fileName } = await request.json();
 

@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceClient } from '@/lib/supabase';
+import { getAllowedUserId } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
+  const userId = await getAllowedUserId(request);
+  if (!userId) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const conversationId = searchParams.get('conversationId');
@@ -16,6 +22,7 @@ export async function GET(request: NextRequest) {
       .from('messages')
       .select('role, content, created_at')
       .eq('conversation_id', conversationId)
+      .eq('user_id', userId)
       .order('created_at', { ascending: true });
 
     if (error) throw error;

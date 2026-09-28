@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { getServiceClient } from '@/lib/supabase';
-import { createServerClient } from '@supabase/ssr';
+import { getAllowedUserId } from '@/lib/auth';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -11,26 +11,6 @@ const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const GITHUB_OWNER  = 'granarkillus';
 const GITHUB_REPO   = 'cipher';
 const GITHUB_BRANCH = 'main';
-
-// ── Resolve the logged-in user from request cookies ───────────────────────────
-async function getUserId(request: NextRequest): Promise<string | null> {
-  try {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() { return request.cookies.getAll(); },
-          setAll() { /* read-only in API route */ },
-        },
-      }
-    );
-    const { data: { user } } = await supabase.auth.getUser();
-    return user?.id ?? null;
-  } catch {
-    return null;
-  }
-}
 
 // ── Tool definitions ─────────────────────────────────────────────────────────
 
@@ -393,7 +373,7 @@ async function embed(text: string): Promise<number[]> {
 export async function POST(request: NextRequest) {
   try {
     // Resolve the logged-in user FIRST. No user → reject.
-    const userId = await getUserId(request);
+    const userId = await getAllowedUserId(request);
     if (!userId) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }

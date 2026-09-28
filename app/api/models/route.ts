@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getAllowedUserId } from '@/lib/auth';
 
 interface ModelOption {
   id: string;
@@ -27,7 +28,12 @@ function labelFor(id: string): string {
   return id;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const userId = await getAllowedUserId(request);
+  if (!userId) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
   try {
     const res = await fetch('https://api.anthropic.com/v1/models', {
       headers: {

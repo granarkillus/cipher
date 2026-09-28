@@ -20,3 +20,7 @@ dist/
 .DS_Store
 *.pem
 npm-debug.log*
+
+# next / typescript build output
+next-env.d.ts
+*.tsbuildinfo
